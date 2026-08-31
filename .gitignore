@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.pnpm-store/
+pw-browsers/
+chrome-profile*/
+chrome-qa-profile/
+qa-*.png
+.env
+*.local
+.gh-config/
+.gh-token
+gh-cli/
+gh-cli.zip
+gh-release.json

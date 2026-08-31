@@ -1,0 +1,241 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Activity, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
+  Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
+  FileSpreadsheet, FileText, Globe2, GraduationCap, Home, Languages,
+  Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper,
+  PackageSearch, PanelLeftClose, PenLine, Plus, Search, Send, Settings, Share2,
+  Sparkles, Target, Upload, UsersRound, X
+} from 'lucide-react';
+import './styles.css';
+
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
+
+const initialTasks = [
+  { id: 1, time: '09:00', title: '跟进 SERKO 展会样品确认', lane: 'sales', done: true },
+  { id: 2, time: '10:30', title: '更新 HML-18448 电池灯报价', lane: 'sales', done: true },
+  { id: 3, time: '13:30', title: '听力 Section 3/4 精听训练', lane: 'ielts', done: false },
+  { id: 4, time: '15:00', title: 'LinkedIn 主页完善与首帖', lane: 'social', done: false },
+  { id: 5, time: '16:30', title: '整理欧洲道路救援客户名单', lane: 'sales', done: false },
+  { id: 6, time: '18:00', title: 'Writing Task 2 练习与复盘', lane: 'ielts', done: false },
+  { id: 7, time: '20:00', title: '排期本周三平台内容', lane: 'social', done: false },
+  { id: 8, time: '21:30', title: '今日复盘与明日计划', lane: 'sales', done: false }
+];
+
+const initialLeads = [
+  { company: 'TEVOR Sp. z o.o.', country: '波兰', type: '救援车辆制造商', contact: 'Export Manager', status: '待开发', next: '发送HML-18448场景方案', priority: 'A' },
+  { company: 'Roger Dyson Group', country: '英国', type: '救援车辆制造商', contact: 'Haris Naeem', status: '待开发', next: '采购负责人定向触达', priority: 'A' },
+  { company: 'Contorion GmbH', country: '德国', type: '专业工具B2B电商', contact: 'Matt Breier', status: '待开发', next: '请求转交照明品类经理', priority: 'A' },
+  { company: 'Proffsmagasinet', country: '瑞典', type: '专业工具电商', contact: 'Amanda Ekbäck', status: '已找到决策人', next: 'LinkedIn连接+产品资料', priority: 'A' },
+  { company: 'Power Tool World', country: '英国', type: '工具经销商', contact: 'Dave Prime', status: '已找到决策人', next: '发送采购定向开发信', priority: 'A' },
+  { company: 'Klium N.V.', country: '比利时', type: '专业工具电商', contact: '待确认', status: '研究中', next: '查找Lighting Category', priority: 'B' }
+];
+
+const intel = [
+  { time: '2小时前', title: '欧盟车辆照明法规与认证动态', source: 'UNECE / EU', impact: '关注', tone: 'good' },
+  { time: '5小时前', title: '欧洲道路救援装备渠道更新', source: '行业协会', impact: '机会', tone: 'good' },
+  { time: '昨天', title: '专业工具渠道增加多电池平台产品', source: '渠道监测', impact: '中性', tone: 'neutral' },
+  { time: '2天前', title: '海外社媒短视频内容趋势变化', source: '平台动态', impact: '行动', tone: 'warn' }
+];
+
+const navGroups = [
+  { label: '工作台', items: [
+    ['today', '今日工作台', Home], ['crm', '客户管理 CRM', UsersRound], ['intel', '行业情报', Newspaper], ['excel', 'Excel 数据中心', FileSpreadsheet]
+  ]},
+  { label: '学习中心', items: [
+    ['ielts', '雅思 6.5 计划', GraduationCap], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
+  ]},
+  { label: '社媒中心', items: [
+    ['social', '内容工作台', Share2], ['linkedin', 'LinkedIn 运营', Send], ['calendar', '内容日历', CalendarDays]
+  ]}
+];
+
+const laneMeta = {
+  sales: { label: '外贸跟进', color: '#c9141d' },
+  ielts: { label: '雅思训练', color: '#177245' },
+  social: { label: '社媒发布', color: '#b36500' }
+};
+
+function usePersistedState(key, fallback) {
+  const [value, setValue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  });
+  useEffect(() => localStorage.setItem(key, JSON.stringify(value)), [key, value]);
+  return [value, setValue];
+}
+
+function App() {
+  const [page, setPage] = useState('today');
+  const [tasks, setTasks] = usePersistedState('lydia.tasks', initialTasks);
+  const [leads, setLeads] = usePersistedState('lydia.leads', initialLeads);
+  const [notes, setNotes] = usePersistedState('lydia.notes', []);
+  const [lane, setLane] = useState('sales');
+  const [query, setQuery] = useState('');
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const showToast = (message) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 2200);
+  };
+
+  const toggleTask = (id) => setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const doneCount = tasks.filter(t => t.done).length;
+  const percent = Math.round((doneCount / tasks.length) * 100);
+
+  const addQuick = (text) => {
+    if (!text.trim()) return;
+    const item = { id: Date.now(), time: '待安排', title: text.trim(), lane, done: false };
+    setTasks([...tasks, item]);
+    setNotes([{ id: item.id, text: text.trim(), createdAt: new Date().toISOString() }, ...notes]);
+    showToast('已加入今日计划');
+  };
+
+  const exportCsv = () => {
+    const rows = [
+      ['公司', '国家', '客户类型', '联系人', '状态', '下一步', '优先级'],
+      ...leads.map(lead => [lead.company, lead.country, lead.type, lead.contact, lead.status, lead.next, lead.priority])
+    ];
+    const csv = '\ufeff' + rows.map(row => row.map(v => `"${String(v).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `Lydia_CRM_${new Date().toISOString().slice(0, 10)}.csv`; link.click();
+    URL.revokeObjectURL(url);
+    showToast('CRM 已导出，可用 Excel 打开');
+  };
+
+  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
+
+  return <div className="app-shell">
+    <Sidebar page={page} setPage={setPage} open={mobileMenu} close={() => setMobileMenu(false)} />
+    <main className="main-shell">
+      <Topbar title={titles[page] || 'Lydia Workbench'} query={query} setQuery={setQuery} openMenu={() => setMobileMenu(true)} showToast={showToast} />
+      <div className="page-wrap">
+        {page === 'today' && <Dashboard tasks={tasks} toggleTask={toggleTask} doneCount={doneCount} percent={percent} lane={lane} setLane={setLane} addQuick={addQuick} />}
+        {page === 'crm' && <Crm leads={leads} setLeads={setLeads} query={query} exportCsv={exportCsv} showToast={showToast} />}
+        {page === 'ielts' && <Ielts showToast={showToast} />}
+        {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
+        {page === 'intel' && <Intel showToast={showToast} />}
+        {page === 'excel' && <ExcelCenter leads={leads} exportCsv={exportCsv} showToast={showToast} />}
+        {['terms', 'writing'].includes(page) && <WritingLab mode={page} showToast={showToast} />}
+      </div>
+    </main>
+    <MobileNav page={page} setPage={setPage} openMore={() => setMobileMenu(true)} />
+    {toast && <div className="toast"><Check size={16} />{toast}</div>}
+  </div>;
+}
+
+function Sidebar({ page, setPage, open, close }) {
+  const go = (id) => { setPage(id); close(); };
+  return <>
+    <div className={`mobile-scrim ${open ? 'show' : ''}`} onClick={close} />
+    <aside className={`sidebar ${open ? 'open' : ''}`}>
+      <div className="brand"><div className="brand-mark">LW</div><div><strong>Lydia Workbench</strong><span>汽车LED外贸 · 雅思 · 社媒</span></div><button className="mobile-close" onClick={close}><X /></button></div>
+      <nav>
+        {navGroups.map(group => <div className="nav-group" key={group.label}>
+          <div className="nav-label">{group.label}</div>
+          {group.items.map(([id, label, Icon]) => <button key={id} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => go(id)}><Icon size={18}/><span>{label}</span></button>)}
+        </div>)}
+      </nav>
+      <button className="settings-row"><Settings size={18}/><span>设置与同步</span></button>
+    </aside>
+  </>;
+}
+
+function Topbar({ title, query, setQuery, openMenu, showToast }) {
+  return <header className="topbar">
+    <button className="menu-btn" onClick={openMenu}><Menu /></button>
+    <div className="mobile-title">{title}</div>
+    <label className="global-search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索客户、产品、任务或文件"/><kbd>Ctrl K</kbd></label>
+    <div className="top-actions">
+      <div className="date-control"><CalendarDays size={17}/><span>{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })}</span></div>
+      <button className="sync-control" onClick={() => showToast('本机数据已保存；云同步待配置')}><Cloud size={17}/><span>本机已保存</span></button>
+      <button className="icon-btn" title="通知"><Bell size={19}/></button>
+      <button className="profile"><CircleUserRound size={25}/><span>Lydia</span><ChevronDown size={14}/></button>
+    </div>
+  </header>;
+}
+
+function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQuick }) {
+  const [capture, setCapture] = useState('');
+  const laneTasks = tasks.filter(t => t.lane === lane && !t.done);
+  const submit = () => { addQuick(capture); setCapture(''); };
+  return <>
+    <PageHead title="今日工作台" subtitle="把客户推进、英语训练和个人品牌做成每天可完成的动作" />
+    <section className="progress-strip">
+      <Metric label="业务跟进" value={`${tasks.filter(t => t.lane === 'sales' && t.done).length} / ${tasks.filter(t => t.lane === 'sales').length}`} pct={46}/>
+      <Metric label="雅思训练" value="45 / 90 分钟" pct={50}/>
+      <Metric label="社媒发布" value="1 / 3 项" pct={33}/>
+      <Metric label="每日目标" value={`${percent}%`} pct={percent}/>
+    </section>
+    <div className="dashboard-grid">
+      <section className="panel day-plan">
+        <div className="panel-title"><div><CheckSquare size={19}/>今日计划</div><span>已完成 {doneCount} / {tasks.length}</span></div>
+        <div className="task-list">{tasks.map(task => <label className={`task-row ${task.done ? 'done' : ''}`} key={task.id}><input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)}/><span className="custom-check">{task.done && <Check size={14}/>}</span><time>{task.time}</time><span>{task.title}</span></label>)}</div>
+      </section>
+      <section className="panel focus-panel">
+        <div className="lane-tabs">{Object.entries(laneMeta).map(([id, meta]) => <button style={{'--lane': meta.color}} className={lane === id ? 'active' : ''} onClick={() => setLane(id)} key={id}>{meta.label}<span>{tasks.filter(t => t.lane === id && !t.done).length}</span></button>)}</div>
+        <ol className="focus-list">{laneTasks.map((task, index) => <li key={task.id}><span className="rank">{index + 1}</span><span>{task.title}</span><time>{task.time}</time></li>)}</ol>
+        <button className="text-action">查看该模块全部任务 <span>→</span></button>
+      </section>
+    </div>
+    <section className="panel intel-panel">
+      <div className="panel-title"><div><Newspaper size={19}/>LED 行业情报</div><button className="text-action">更多 →</button></div>
+      <div className="intel-table"><div className="intel-head"><span>时间</span><span>标题</span><span>来源</span><span>判断</span></div>{intel.map((item, i) => <div className="intel-row" key={i}><span>{item.time}</span><strong>{item.title}</strong><span>{item.source}</span><span className={`impact ${item.tone}`}>{item.impact}</span></div>)}</div>
+    </section>
+    <section className="quick-capture"><PenLine size={18}/><input value={capture} onChange={e => setCapture(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder={`记录${laneMeta[lane].label}的待办、灵感或下一步行动`}/><button className="icon-btn" title="添加附件"><Upload size={18}/></button><button className="send-btn" onClick={submit} title="保存"><Send size={18}/></button></section>
+  </>;
+}
+
+function PageHead({ title, subtitle, action }) { return <div className="page-head"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
+function Metric({ label, value, pct }) { return <div className="metric"><span>{label}</span><strong>{value}</strong><div className="bar"><i style={{width: `${pct}%`}}/></div></div>; }
+
+function Crm({ leads, setLeads, query, exportCsv, showToast }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const filtered = useMemo(() => leads.filter(l => Object.values(l).join(' ').toLowerCase().includes(query.toLowerCase())), [leads, query]);
+  const addLead = (e) => {
+    e.preventDefault(); const data = new FormData(e.currentTarget);
+    setLeads([{ company: data.get('company'), country: data.get('country'), type: data.get('type'), contact: data.get('contact') || '待确认', status: '待开发', next: '完成背景调查', priority: 'B' }, ...leads]);
+    setFormOpen(false); showToast('客户已加入CRM');
+  };
+  return <>
+    <PageHead title="客户管理 CRM" subtitle="从公开信息、决策人触达到报价和订单，保留每一步证据" action={<div className="head-actions"><button className="secondary-btn" onClick={exportCsv}><Download size={17}/>导出 Excel</button><button className="primary-btn" onClick={() => setFormOpen(true)}><Plus size={17}/>新增客户</button></div>} />
+    <div className="crm-summary"><Metric label="客户总数" value={String(leads.length)} pct={100}/><Metric label="A级机会" value={String(leads.filter(l => l.priority === 'A').length)} pct={70}/><Metric label="已找到决策人" value={String(leads.filter(l => l.status.includes('决策人')).length)} pct={42}/><Metric label="本周待跟进" value="5" pct={62}/></div>
+    <section className="panel table-panel"><div className="data-table"><div className="data-head"><span>优先级</span><span>公司 / 国家</span><span>客户类型</span><span>联系人</span><span>进度</span><span>下一步</span></div>{filtered.map((lead, i) => <div className="data-row" key={lead.company}><span><b className={`priority p${lead.priority}`}>{lead.priority}</b></span><span><strong>{lead.company}</strong><small>{lead.country}</small></span><span>{lead.type}</span><span>{lead.contact}</span><span><em>{lead.status}</em></span><span>{lead.next}<button className="row-more"><MoreHorizontal size={17}/></button></span></div>)}</div></section>
+    {formOpen && <Modal title="新增潜在客户" close={() => setFormOpen(false)}><form className="form-grid" onSubmit={addLead}><label>公司名称<input name="company" required/></label><label>国家/地区<input name="country" required/></label><label>客户类型<input name="type" required/></label><label>联系人<input name="contact"/></label><div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setFormOpen(false)}>取消</button><button className="primary-btn">保存客户</button></div></form></Modal>}
+  </>;
+}
+
+function Ielts({ showToast }) {
+  const [minutes, setMinutes] = usePersistedState('lydia.ielts.minutes', 45);
+  const [active, setActive] = useState('听力');
+  const schedule = [['周一','听力精听1篇 + 口语Part 1'],['周二','阅读1篇 + 写作Task 1'],['周三','听力Section 3/4 + 口语Part 2'],['周四','阅读判断题 + Task 2'],['周五','听力真题 + 口语模拟'],['周六','阅读套题 + 写作复盘'],['周日','模考 + 错题复盘']];
+  return <>
+    <PageHead title="雅思 6.5 计划" subtitle="听、说、读、写按周循环，用可量化训练替代零散学习" action={<button className="primary-btn" onClick={() => { setMinutes(minutes + 15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
+    <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳扎稳打</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value="8 项" pct={58}/><Metric label="连续打卡" value="4 天" pct={57}/></section>
+    <section className="panel week-panel"><div className="panel-title"><div><CalendarDays size={19}/>一周循环计划</div></div><div className="week-grid">{schedule.map(([day, work]) => <button key={day}><strong>{day}</strong><span>{work}</span></button>)}</div></section>
+    <div className="study-grid"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div></div><div className="study-tabs">{['听力','口语','阅读','写作'].map(x => <button className={active === x ? 'active' : ''} onClick={() => setActive(x)} key={x}>{x}</button>)}</div><div className="lesson"><span className="lesson-kicker">{active} · 25分钟</span><h2>{active === '听力' ? 'Section 3 场景精听与同义替换' : active === '口语' ? 'Part 2 产品与工作经历表达' : active === '阅读' ? '判断题定位与证据句' : 'Task 2 论证结构训练'}</h2><p>先独立完成，再记录错误原因和可复用表达。训练结果将进入错题与表达库。</p><button className="primary-btn" onClick={() => showToast(`${active}训练已开始`)}>开始训练</button></div></section><section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>3 / 15</span></div><strong>significant</strong><span>/sɪɡˈnɪfɪkənt/</span><p>显著的；重要的</p><blockquote>There has been a significant increase in demand for portable work lights.</blockquote><div className="vocab-actions"><button onClick={() => showToast('已加入复习')}><Check size={16}/>认识</button><button onClick={() => showToast('已加入错词本')}><X size={16}/>需复习</button></div></section></div>
+  </>;
+}
+
+function Social({ showToast }) {
+  const [platform, setPlatform] = useState('LinkedIn');
+  const [draft, setDraft] = usePersistedState('lydia.social.draft', 'A portable work light should solve a real job-site problem: reliable illumination without adding another battery system.');
+  return <><PageHead title="社媒内容工作台" subtitle="从产品知识、客户问题和日常工作中持续积累专业内容" action={<button className="primary-btn" onClick={() => showToast('草稿已保存')}><Check size={17}/>保存草稿</button>} />
+    <div className="social-grid"><section className="panel content-editor"><div className="platform-tabs">{['LinkedIn','Facebook','Instagram'].map(p => <button className={platform === p ? 'active' : ''} onClick={() => setPlatform(p)} key={p}>{p}</button>)}</div><label>内容主题<input defaultValue="多电池兼容工作灯：为什么能减少渠道库存"/></label><label>正文<textarea value={draft} onChange={e => setDraft(e.target.value)}/></label><div className="editor-actions"><span>{draft.length} 字符</span><button className="secondary-btn"><Sparkles size={17}/>优化表达</button><button className="primary-btn" onClick={() => showToast(`${platform}内容已加入排期`)}><CalendarDays size={17}/>加入排期</button></div></section><section className="panel content-queue"><div className="panel-title"><div><CalendarDays size={19}/>本周排期</div></div>{[['周二','LinkedIn','HML-18448应用场景'],['周四','Facebook','展会准备幕后记录'],['周六','Instagram','产品细节短视频']].map(x => <div className="queue-row" key={x[0]}><time>{x[0]}</time><div><strong>{x[1]}</strong><span>{x[2]}</span></div><MoreHorizontal size={17}/></div>)}</section></div>
+  </>;
+}
+
+function Intel({ showToast }) { return <><PageHead title="LED 行业情报" subtitle="只保留对客户开发、产品选择和风险判断有用的信息" action={<button className="primary-btn" onClick={() => showToast('正式联网源需在服务器端配置')}><Activity size={17}/>更新情报</button>} /><section className="source-note"><Globe2 size={19}/><div><strong>联网信息源接口已预留</strong><span>正式版建议接入Google News/RSS、官方法规网站、展会目录与授权商业数据库。网页不会直接保存密钥。</span></div></section><section className="panel intel-library">{intel.concat(intel.slice(0,2)).map((item,i) => <article key={i}><div><span>{item.source}</span><time>{item.time}</time></div><h3>{item.title}</h3><p>已进入待核验队列。确认来源、发布时间及对HANMA产品和客户的实际影响后再写入销售结论。</p><footer><span className={`impact ${item.tone}`}>{item.impact}</span><button>查看与分析 →</button></footer></article>)}</section></> }
+
+function ExcelCenter({ leads, exportCsv, showToast }) { return <><PageHead title="Excel 数据中心" subtitle="统一导入、清洗、去重并导出客户与工作记录" action={<button className="primary-btn" onClick={exportCsv}><Download size={17}/>导出当前CRM</button>} /><div className="excel-grid"><section className="panel upload-zone"><Upload size={28}/><h2>导入客户表格</h2><p>支持下一阶段接入 .xlsx、.csv；当前演示版提供CSV导出。</p><button className="secondary-btn" onClick={() => showToast('Excel导入将在云端版启用')}>选择文件</button></section><section className="panel"><div className="panel-title"><div><Database size={19}/>当前数据</div></div><div className="data-health"><strong>{leads.length}</strong><span>客户记录</span><strong>{leads.filter(x=>x.contact !== '待确认').length}</strong><span>有联系人</span><strong>{leads.filter(x=>x.priority === 'A').length}</strong><span>A级机会</span></div></section></div><section className="panel rules-list"><div className="panel-title"><div><FileSpreadsheet size={19}/>标准化规则</div></div>{['保留客户历史记录原文，不自动改写','官网、LinkedIn及公开邮箱分别保留证据链接','未核实联系人和推测信息标记为待确认','同一客户的多个历史编码合并维护'].map((x,i)=><div key={x}><span>{i+1}</span><p>{x}</p><Check size={17}/></div>)}</section></> }
+
+function WritingLab({ mode, showToast }) { const [text,setText]=useState(''); return <><PageHead title={mode === 'terms' ? 'LED 后装术语' : '写作与邮件批改'} subtitle={mode === 'terms' ? '建立中英术语、参数、应用和客户价值的可检索知识库' : '先检查事实和目的，再优化欧洲客户常用商务表达'} /><section className="panel writing-lab"><div className="lab-toolbar"><button className="active">商务邮件</button><button>雅思写作</button><button>产品规格</button></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="粘贴需要检查的英文内容，或输入LED车灯术语……"/><div className="editor-actions"><span>{text.length} 字符</span><button className="primary-btn" onClick={()=>showToast('本地检查完成；AI评分需连接服务器')}><Bot size={17}/>开始检查</button></div></section></> }
+
+function Modal({ title, close, children }) { return <div className="modal-scrim"><div className="modal"><div className="modal-head"><h2>{title}</h2><button onClick={close}><X/></button></div>{children}</div></div> }
+function MobileNav({ page, setPage, openMore }) { return <nav className="mobile-nav">{[['today','今日',Home],['crm','客户',UsersRound],['ielts','学习',BookOpen],['social','社媒',BarChart3]].map(([id,label,Icon])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><Icon/><span>{label}</span></button>)}<button onClick={openMore}><MoreHorizontal/><span>更多</span></button></nav> }
+
+createRoot(document.getElementById('root')).render(<React.StrictMode><App /></React.StrictMode>);
