@@ -1,0 +1,17 @@
+{
+  "name": "Lydia Workbench",
+  "short_name": "Lydia",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#b5121b",
+  "description": "汽车LED外贸、雅思6.5与海外社媒运营工作台",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
