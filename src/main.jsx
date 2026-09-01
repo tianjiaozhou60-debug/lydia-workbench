@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Activity, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
+  Activity, ArrowLeft, ArrowRight, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
   Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
   FileSpreadsheet, FileText, Globe2, GraduationCap, Home, Languages,
   Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper,
@@ -10,10 +10,19 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import './ielts-bank.css';
+import './ielts-learning.css';
+import { contextParagraphs, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').then(registration => registration.update()));
 }
+
+const localDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const initialTasks = [
   { id: 1, time: '09:00', title: '跟进 SERKO 展会样品确认', lane: 'sales', done: true },
@@ -212,14 +221,83 @@ function Crm({ leads, setLeads, query, exportCsv, showToast }) {
 }
 
 function Ielts({ showToast }) {
-  const [minutes, setMinutes] = usePersistedState('lydia.ielts.minutes', 45);
-  const [active, setActive] = useState('听力');
-  const schedule = [['周一','听力精听1篇 + 口语Part 1'],['周二','阅读1篇 + 写作Task 1'],['周三','听力Section 3/4 + 口语Part 2'],['周四','阅读判断题 + Task 2'],['周五','听力真题 + 口语模拟'],['周六','阅读套题 + 写作复盘'],['周日','模考 + 错题复盘']];
+  const subjectKeys = Object.keys(ieltsSubjects);
+  const today = localDateKey();
+  const dayNumber = Math.floor(new Date(`${today}T00:00:00`).getTime() / 86400000);
+  const weekday = (new Date().getDay() + 6) % 7;
+  const [active, setActive] = useState('listening');
+  const [session, setSession] = useState(null);
+  const [translations, setTranslations] = useState([]);
+  const [selectedWord, setSelectedWord] = useState('');
+  const [progress, setProgress] = usePersistedState('lydia.ielts.learning.v2', {
+    minutesByDay: {}, checkins: {}, taskOffsets: {}, vocabIndex: 0,
+    knownWords: [], reviewWords: [], reviewCursor: 0
+  });
+  const schedule = [['周一','听力精听 + 口语Part 1'],['周二','阅读定位 + Task 1'],['周三','听力Section 3/4 + 口语Part 2'],['周四','阅读判断题 + Task 2'],['周五','听力套题 + 口语模拟'],['周六','阅读套题 + 写作复盘'],['周日','模考 + 错题复盘']];
+  const subject = ieltsSubjects[active];
+  const taskIndex = (dayNumber + subjectKeys.indexOf(active) + (progress.taskOffsets?.[active] || 0)) % subject.tasks.length;
+  const task = subject.tasks[taskIndex];
+  const vocabIndex = progress.vocabIndex % ieltsVocabulary.length;
+  const vocab = ieltsVocabulary[vocabIndex];
+  const minutes = progress.minutesByDay?.[today] || 0;
+  const todayDone = progress.checkins?.[today] || [];
+  const weekDone = Object.entries(progress.checkins || {}).filter(([date]) => (new Date(today) - new Date(date)) / 86400000 < 7).reduce((sum, [, items]) => sum + items.length, 0);
+  const streak = (() => { let count = 0; const cursor = new Date(`${today}T00:00:00`); while ((progress.checkins?.[localDateKey(cursor)] || []).length) { count++; cursor.setDate(cursor.getDate() - 1); } return count; })();
+
+  const patchProgress = patch => setProgress({ ...progress, ...patch });
+  const recordMinutes = amount => patchProgress({ minutesByDay: { ...(progress.minutesByDay || {}), [today]: minutes + amount } });
+  const advanceVocab = (needsReview) => {
+    const list = needsReview ? [...new Set([...(progress.reviewWords || []), vocab.word])] : (progress.reviewWords || []).filter(word => word !== vocab.word);
+    patchProgress({
+      vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length,
+      reviewWords: list,
+      knownWords: needsReview ? (progress.knownWords || []) : [...new Set([...(progress.knownWords || []), vocab.word])]
+    });
+    showToast(needsReview ? '已加入错词本，进入下一个词' : '已掌握，进入下一个词');
+  };
+  const beginTraining = () => {
+    setSession({ subject: active, title: task[0], steps: subject.steps.map(() => false) });
+    showToast(`${subject.label}训练已开始`);
+  };
+  const finishTraining = () => {
+    const nextDone = [...new Set([...todayDone, active])];
+    setProgress({
+      ...progress,
+      minutesByDay: { ...(progress.minutesByDay || {}), [today]: minutes + subject.duration },
+      checkins: { ...(progress.checkins || {}), [today]: nextDone },
+      taskOffsets: { ...(progress.taskOffsets || {}), [active]: (progress.taskOffsets?.[active] || 0) + 1 }
+    });
+    setSession(null);
+    showToast(`${subject.label}已完成，下一项训练已更新`);
+  };
+  const addReviewWord = word => {
+    patchProgress({ reviewWords: [...new Set([...(progress.reviewWords || []), word])] });
+    showToast(`${word} 已加入生词本`);
+  };
+  const exportReview = () => {
+    if (!(progress.reviewWords || []).length) return showToast('错词本暂时为空');
+    const rows = progress.reviewWords.map(word => { const item = ieltsVocabulary.find(v => v.word === word); return item ? `${item.word}\t${item.ipa}\t${item.meaning}` : word; });
+    const url = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = `IELTS_错词本_${today}.txt`; link.click(); URL.revokeObjectURL(url);
+  };
+  const reviewList = progress.reviewWords || [];
+  const reviewWord = reviewList.length ? reviewList[(progress.reviewCursor || 0) % reviewList.length] : '';
+  const contextDetail = contextParagraphs.flatMap(paragraph => paragraph.parts).find(part => Array.isArray(part) && part[0] === reviewWord);
+  const reviewDetail = ieltsVocabulary.find(item => item.word === reviewWord) || (contextDetail ? {
+    word: reviewWord,
+    ipa: contextDetail[1].split(' ')[0],
+    meaning: contextDetail[1].split(' ').slice(1).join(' '),
+    example: 'Saved from the contextual vocabulary passage.'
+  } : null);
   return <>
-    <PageHead title="雅思 6.5 计划" subtitle="听、说、读、写按周循环，用可量化训练替代零散学习" action={<button className="primary-btn" onClick={() => { setMinutes(minutes + 15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
-    <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳扎稳打</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value="8 项" pct={58}/><Metric label="连续打卡" value="4 天" pct={57}/></section>
-    <section className="panel week-panel"><div className="panel-title"><div><CalendarDays size={19}/>一周循环计划</div></div><div className="week-grid">{schedule.map(([day, work]) => <button key={day}><strong>{day}</strong><span>{work}</span></button>)}</div></section>
-    <div className="study-grid"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div></div><div className="study-tabs">{['听力','口语','阅读','写作'].map(x => <button className={active === x ? 'active' : ''} onClick={() => setActive(x)} key={x}>{x}</button>)}</div><div className="lesson"><span className="lesson-kicker">{active} · 25分钟</span><h2>{active === '听力' ? 'Section 3 场景精听与同义替换' : active === '口语' ? 'Part 2 产品与工作经历表达' : active === '阅读' ? '判断题定位与证据句' : 'Task 2 论证结构训练'}</h2><p>先独立完成，再记录错误原因和可复用表达。训练结果将进入错题与表达库。</p><button className="primary-btn" onClick={() => showToast(`${active}训练已开始`)}>开始训练</button></div></section><section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>3 / 15</span></div><strong>significant</strong><span>/sɪɡˈnɪfɪkənt/</span><p>显著的；重要的</p><blockquote>There has been a significant increase in demand for portable work lights.</blockquote><div className="vocab-actions"><button onClick={() => showToast('已加入复习')}><Check size={16}/>认识</button><button onClick={() => showToast('已加入错词本')}><X size={16}/>需复习</button></div></section></div>
+    <PageHead title="雅思 6.5 计划" subtitle={`${today} · 内容每日自动轮换，操作结果会保存在本机`} action={<button className="primary-btn" onClick={() => { recordMinutes(15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
+    <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳定执行</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value={`${weekDone} 项`} pct={Math.min(100, weekDone/14*100)}/><Metric label="连续打卡" value={`${streak} 天`} pct={Math.min(100, streak/7*100)}/></section>
+    <section className="panel week-panel"><div className="panel-title"><div><CalendarDays size={19}/>一周循环计划</div><span>今天的计划已突出显示</span></div><div className="week-grid">{schedule.map(([day, work], index) => <button className={weekday === index ? 'today' : ''} onClick={() => showToast(`${day}：${work}`)} key={day}><strong>{day}</strong><span>{work}</span></button>)}</div></section>
+    <div className="study-grid dynamic-study"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div><span>{todayDone.length} / 4 科完成</span></div><div className="study-tabs">{subjectKeys.map(key => <button className={active === key ? 'active' : ''} onClick={() => { setActive(key); setSession(null); }} key={key}>{ieltsSubjects[key].label}{todayDone.includes(key) && <Check size={14}/>}</button>)}</div><div className="lesson"><span className="lesson-kicker">{subject.label} · {subject.duration}分钟 · 今日第 {taskIndex + 1} 项</span><h2>{task[0]}</h2><p>{task[1]}</p><small>{subject.focus}</small><button className="primary-btn" onClick={beginTraining}>{todayDone.includes(active) ? '继续下一项' : '开始训练'}</button></div></section>
+      <section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>{vocabIndex + 1} / {ieltsVocabulary.length}</span></div><div className="vocab-card-nav"><button title="上一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex - 1 + ieltsVocabulary.length) % ieltsVocabulary.length })}><ArrowLeft size={17}/></button><button title="下一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length })}><ArrowRight size={17}/></button></div><strong>{vocab.word}</strong><span>{vocab.ipa}</span><p>{vocab.meaning}</p><blockquote>{vocab.example}</blockquote><div className="vocab-actions"><button onClick={() => advanceVocab(false)}><Check size={16}/>认识</button><button onClick={() => advanceVocab(true)}><X size={16}/>需复习</button></div></section></div>
+    {session && <section className="panel training-session"><div className="panel-title"><div><Activity size={19}/>{session.title}</div><button onClick={() => setSession(null)}><X size={17}/></button></div><p>{ieltsSubjects[session.subject].focus}</p><div>{ieltsSubjects[session.subject].steps.map((step, index) => <label className={session.steps[index] ? 'done' : ''} key={step}><input type="checkbox" checked={session.steps[index]} onChange={() => setSession({ ...session, steps: session.steps.map((value, i) => i === index ? !value : value) })}/><span>{session.steps[index] && <Check size={14}/>}</span>{step}</label>)}</div><button className="primary-btn" disabled={!session.steps.every(Boolean)} onClick={finishTraining}>完成并进入下一项</button></section>}
+    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><span>点击高亮词查看释义并收藏</span></div>{contextParagraphs.map((paragraph, index) => <article key={index}><p>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <button className={selectedWord === part[0] ? 'selected' : ''} onClick={() => setSelectedWord(selectedWord === part[0] ? '' : part[0])} key={partIndex}>{part[0]}{selectedWord === part[0] && <span>{part[1]}<b onClick={event => { event.stopPropagation(); addReviewWord(part[0]); }}>加入生词本</b></span>}</button> : part)}</p><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>)}</section>
+      <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><strong>{reviewDetail.word}</strong><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p><blockquote>{reviewDetail.example}</blockquote><div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”或收藏短文中的高亮词。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
   </>;
 }
 

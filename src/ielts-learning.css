@@ -1,0 +1,63 @@
+.week-grid button.today{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+.dynamic-study .study-tabs button{display:flex;align-items:center;justify-content:center;gap:5px;flex:1}
+.dynamic-study .study-tabs svg{color:var(--green)}
+.dynamic-study .lesson{display:flex;min-height:286px;flex-direction:column;align-items:flex-start}
+.dynamic-study .lesson small{display:block;color:var(--green);font-size:12px;line-height:1.6;margin-bottom:22px}
+.dynamic-study .lesson .primary-btn{margin-top:auto}
+.vocab{position:relative}
+.vocab-card-nav{position:absolute;top:65px;right:16px;display:flex;gap:5px}
+.vocab-card-nav button{width:32px;height:32px;border:1px solid var(--line);border-radius:5px;background:#fff;display:grid;place-items:center}
+.training-session{margin:16px 0;padding-bottom:18px}
+.training-session .panel-title>button{border:0;background:transparent}
+.training-session>p{margin:18px 20px 10px;color:var(--muted);font-size:13px}
+.training-session>div:not(.panel-title){display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:8px 20px 16px}
+.training-session label{min-height:70px;border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer}
+.training-session label.done{border-color:#a9d6b9;background:#f2faf5;color:var(--green)}
+.training-session label input{position:absolute;opacity:0}
+.training-session label>span{width:18px;height:18px;flex:none;border:1px solid #aaa;border-radius:3px;display:grid;place-items:center}
+.training-session label.done>span{background:var(--green);border-color:var(--green);color:#fff}
+.training-session>.primary-btn{margin-left:20px}
+.training-session>.primary-btn:disabled{opacity:.4;cursor:not-allowed}
+.ielts-tools-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:16px;margin-top:16px}
+.context-reader article{padding:16px 20px;border-bottom:1px solid var(--line)}
+.context-reader article:last-child{border-bottom:0}
+.context-reader article>p{font-size:14px;line-height:2;margin:0 0 10px}
+.context-reader article>p>button{display:inline;border:0;border-bottom:2px solid #1692c9;border-radius:3px;background:#e8f7fd;padding:1px 4px;margin:0 2px;font-weight:700;position:relative}
+.context-reader article>p>button.selected{background:#d8f1fb}
+.context-reader article>p>button>span{position:absolute;left:0;bottom:calc(100% + 7px);z-index:8;min-width:210px;padding:9px 10px;border-radius:6px;background:#222;color:#fff;text-align:left;font-size:11px;font-weight:400;line-height:1.5;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+.context-reader article>p>button>span b{display:block;color:#8ee5af;margin-top:4px;font-weight:700}
+.translation-button{border:1px solid var(--line);border-radius:5px;background:#fff;padding:6px 10px;color:var(--muted);font-size:11px}
+.translation-text-live{margin-top:10px;padding:10px 12px;border-left:3px solid var(--green);background:var(--soft);color:#555;font-size:12px;line-height:1.7}
+.error-book{position:relative;padding-bottom:52px;min-height:360px}
+.review-card{padding:20px}
+.review-card>small,.review-card>strong,.review-card>span{display:block}
+.review-card>small{color:var(--muted);font-size:11px}
+.review-card>strong{font-size:25px;margin-top:17px}
+.review-card>span{color:#777;margin-top:4px}
+.review-card>p{font-size:14px}
+.review-card>blockquote{margin:16px 0;padding:12px;border-left:3px solid var(--green);background:var(--soft);font-size:12px;line-height:1.6}
+.review-card>div{display:flex;gap:8px}
+.empty-review{min-height:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted);gap:9px;padding:20px}
+.empty-review strong{color:var(--ink)}
+.empty-review span{font-size:12px;line-height:1.6}
+.export-review{position:absolute;left:0;right:0;bottom:0;width:100%;height:44px;border:0;border-top:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;color:var(--red);font-size:12px;font-weight:700}
+
+@media(max-width:980px){
+  .ielts-tools-grid{grid-template-columns:1fr}
+  .training-session>div:not(.panel-title){grid-template-columns:repeat(2,1fr)}
+}
+
+@media(max-width:720px){
+  .dynamic-study .lesson{min-height:260px;padding:22px 18px}
+  .dynamic-study .lesson h2{font-size:20px;line-height:1.45}
+  .vocab-card-nav{top:61px;right:14px}
+  .training-session>div:not(.panel-title){grid-template-columns:1fr;padding:8px 14px 14px}
+  .training-session>p{margin:16px 14px 8px}
+  .training-session label{min-height:54px;align-items:center}
+  .training-session>.primary-btn{margin-left:14px}
+  .context-reader .panel-title>span{display:none}
+  .context-reader article{padding:15px 16px}
+  .context-reader article>p{font-size:15px;line-height:2.15}
+  .context-reader article>p>button>span{position:fixed;left:14px;right:14px;bottom:82px;min-width:0;font-size:12px}
+  .error-book{min-height:330px}
+}
