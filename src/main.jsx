@@ -9,6 +9,7 @@ import {
   Sparkles, Target, Upload, UsersRound, X
 } from 'lucide-react';
 import './styles.css';
+import './ielts-bank.css';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
@@ -46,7 +47,7 @@ const navGroups = [
     ['today', '今日工作台', Home], ['crm', '客户管理 CRM', UsersRound], ['intel', '行业情报', Newspaper], ['excel', 'Excel 数据中心', FileSpreadsheet]
   ]},
   { label: '学习中心', items: [
-    ['ielts', '雅思 6.5 计划', GraduationCap], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
+    ['ielts', '雅思 6.5 计划', GraduationCap], ['ielts-bank', '雅思真题打卡', CheckSquare], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
   ]},
   { label: '社媒中心', items: [
     ['social', '内容工作台', Share2], ['linkedin', 'LinkedIn 运营', Send], ['calendar', '内容日历', CalendarDays]
@@ -107,7 +108,7 @@ function App() {
     showToast('CRM 已导出，可用 Excel 打开');
   };
 
-  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
+  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', 'ielts-bank': '雅思真题打卡', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
 
   return <div className="app-shell">
     <Sidebar page={page} setPage={setPage} open={mobileMenu} close={() => setMobileMenu(false)} />
@@ -117,6 +118,7 @@ function App() {
         {page === 'today' && <Dashboard tasks={tasks} toggleTask={toggleTask} doneCount={doneCount} percent={percent} lane={lane} setLane={setLane} addQuick={addQuick} />}
         {page === 'crm' && <Crm leads={leads} setLeads={setLeads} query={query} exportCsv={exportCsv} showToast={showToast} />}
         {page === 'ielts' && <Ielts showToast={showToast} />}
+        {page === 'ielts-bank' && <IeltsBank showToast={showToast} />}
         {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
         {page === 'intel' && <Intel showToast={showToast} />}
         {page === 'excel' && <ExcelCenter leads={leads} exportCsv={exportCsv} showToast={showToast} />}
@@ -218,6 +220,62 @@ function Ielts({ showToast }) {
     <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳扎稳打</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value="8 项" pct={58}/><Metric label="连续打卡" value="4 天" pct={57}/></section>
     <section className="panel week-panel"><div className="panel-title"><div><CalendarDays size={19}/>一周循环计划</div></div><div className="week-grid">{schedule.map(([day, work]) => <button key={day}><strong>{day}</strong><span>{work}</span></button>)}</div></section>
     <div className="study-grid"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div></div><div className="study-tabs">{['听力','口语','阅读','写作'].map(x => <button className={active === x ? 'active' : ''} onClick={() => setActive(x)} key={x}>{x}</button>)}</div><div className="lesson"><span className="lesson-kicker">{active} · 25分钟</span><h2>{active === '听力' ? 'Section 3 场景精听与同义替换' : active === '口语' ? 'Part 2 产品与工作经历表达' : active === '阅读' ? '判断题定位与证据句' : 'Task 2 论证结构训练'}</h2><p>先独立完成，再记录错误原因和可复用表达。训练结果将进入错题与表达库。</p><button className="primary-btn" onClick={() => showToast(`${active}训练已开始`)}>开始训练</button></div></section><section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>3 / 15</span></div><strong>significant</strong><span>/sɪɡˈnɪfɪkənt/</span><p>显著的；重要的</p><blockquote>There has been a significant increase in demand for portable work lights.</blockquote><div className="vocab-actions"><button onClick={() => showToast('已加入复习')}><Check size={16}/>认识</button><button onClick={() => showToast('已加入错词本')}><X size={16}/>需复习</button></div></section></div>
+  </>;
+}
+
+function IeltsBank({ showToast }) {
+  const [catalog, setCatalog] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [subject, setSubject] = useState('listening');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [progress, setProgress] = usePersistedState('lydia.ielts.catalogProgress', {});
+  const subjectOrder = ['listening', 'reading', 'writing', 'speaking'];
+
+  useEffect(() => {
+    fetch('./ielts-catalog.json')
+      .then(response => { if (!response.ok) throw new Error('题库目录加载失败'); return response.json(); })
+      .then(setCatalog)
+      .catch(error => setLoadError(error.message));
+  }, []);
+
+  const setItemStatus = (id, status) => {
+    setProgress({ ...progress, [id]: { status, updatedAt: new Date().toISOString() } });
+    showToast(status === 'completed' ? '已完成本题打卡' : status === 'active' ? '已加入进行中' : '已重置打卡状态');
+  };
+  const getStatus = id => progress[id]?.status || 'pending';
+  const totalCompleted = Object.values(progress).filter(item => item.status === 'completed').length;
+
+  if (loadError) return <><PageHead title="雅思真题打卡" subtitle="公开题目目录每日同步，练习保留在原网站"/><section className="source-note"><Globe2/><div><strong>暂时无法加载目录</strong><span>{loadError}</span></div></section></>;
+  if (!catalog) return <><PageHead title="雅思真题打卡" subtitle="正在加载听说读写真题目录…"/><section className="panel bank-loading">题库加载中…</section></>;
+
+  const allRecords = subjectOrder.flatMap(key => catalog.subjects[key]?.records || []);
+  const records = (catalog.subjects[subject]?.records || []).filter(item => {
+    const matchesSearch = [item.title, item.part, item.scene, ...(item.types || [])].join(' ').toLowerCase().includes(search.toLowerCase());
+    return matchesSearch && (statusFilter === 'all' || getStatus(item.id) === statusFilter);
+  });
+  const todaySet = subjectOrder.map(key => {
+    const list = catalog.subjects[key]?.records || [];
+    return list.find(item => getStatus(item.id) !== 'completed') || list[0];
+  }).filter(Boolean);
+  const updatedDate = new Date(catalog.updatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  return <>
+    <PageHead title="雅思真题打卡" subtitle={`来自即刻说雅思公开目录 · 每日自动更新 · 最近更新 ${updatedDate}`} action={<a className="secondary-btn" href={catalog.sourceUrl} target="_blank" rel="noreferrer"><Globe2 size={17}/>打开原题库</a>} />
+    <section className="bank-summary">
+      <div className="bank-goal"><span>题库总量</span><strong>{allRecords.length}</strong><small>仅同步公开目录，不复制题目正文</small></div>
+      {subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => setSubject(key)} key={key}><span>{catalog.subjects[key].label}</span><strong>{catalog.subjects[key].total}</strong><small>已完成 {catalog.subjects[key].records.filter(item => getStatus(item.id) === 'completed').length}</small></button>)}
+      <div className="bank-completed"><span>累计完成</span><strong>{totalCompleted}</strong><small>{allRecords.length ? Math.round(totalCompleted / allRecords.length * 100) : 0}%</small></div>
+    </section>
+    <section className="panel daily-bank">
+      <div className="panel-title"><div><CalendarDays size={19}/>今日四科打卡</div><span>每天各完成1题</span></div>
+      <div className="daily-bank-grid">{todaySet.map(item => <article key={item.id} className={getStatus(item.id)}><div><span>{catalog.subjects[item.subject].label}</span><small>{item.part || item.types?.[0]}</small></div><strong>{item.title}</strong><div className="bank-actions"><a href={item.originalUrl} target="_blank" rel="noreferrer">去原站练习 →</a><button title="完成打卡" onClick={() => setItemStatus(item.id, getStatus(item.id) === 'completed' ? 'pending' : 'completed')}><Check size={17}/></button></div></article>)}</div>
+    </section>
+    <section className="panel bank-library">
+      <div className="bank-toolbar"><div className="subject-tabs">{subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => setSubject(key)} key={key}>{catalog.subjects[key].label}<span>{catalog.subjects[key].total}</span></button>)}</div><label><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索题目、场景、题型"/></label><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">全部状态</option><option value="pending">未开始</option><option value="active">进行中</option><option value="completed">已完成</option></select></div>
+      <div className="bank-list">{records.slice(0, 80).map(item => { const itemStatus = getStatus(item.id); return <article key={item.id} className={itemStatus}><button className="status-toggle" title="切换状态" onClick={() => setItemStatus(item.id, itemStatus === 'pending' ? 'active' : itemStatus === 'active' ? 'completed' : 'pending')}>{itemStatus === 'completed' ? <Check size={16}/> : itemStatus === 'active' ? <Activity size={16}/> : <span/>}</button><div className="bank-item-main"><div><strong>{item.title}</strong><span>{item.part}</span></div><p>{[...(item.types || []), item.scene, item.hitTime].filter(Boolean).join(' · ')}</p></div><div className="bank-item-meta">{item.accuracy >= 0 && <span>正确率 {item.accuracy}%</span>}{item.practitioners >= 0 && <span>{item.practitioners}人练习</span>}</div><a href={item.originalUrl} target="_blank" rel="noreferrer">开始练习 →</a></article> })}</div>
+      {records.length > 80 && <div className="bank-footnote">当前显示前80条，请通过搜索和状态筛选缩小范围。</div>}
+    </section>
   </>;
 }
 

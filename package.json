@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build --base=./",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "sync:ielts": "node scripts/sync-ielts-catalog.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
