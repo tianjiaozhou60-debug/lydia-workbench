@@ -24,16 +24,25 @@ const localDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const initialTasks = [
-  { id: 1, time: '09:00', title: '跟进 SERKO 展会样品确认', lane: 'sales', done: true },
-  { id: 2, time: '10:30', title: '更新 HML-18448 电池灯报价', lane: 'sales', done: true },
-  { id: 3, time: '13:30', title: '听力 Section 3/4 精听训练', lane: 'ielts', done: false },
-  { id: 4, time: '15:00', title: 'LinkedIn 主页完善与首帖', lane: 'social', done: false },
-  { id: 5, time: '16:30', title: '整理欧洲道路救援客户名单', lane: 'sales', done: false },
-  { id: 6, time: '18:00', title: 'Writing Task 2 练习与复盘', lane: 'ielts', done: false },
-  { id: 7, time: '20:00', title: '排期本周三平台内容', lane: 'social', done: false },
-  { id: 8, time: '21:30', title: '今日复盘与明日计划', lane: 'sales', done: false }
+const seededTasks = [
+  { id: '2026-09-01-00240-booking', date: '2026-09-01', time: '完成', title: '00240 Rindab：订舱函已发给阿婷，按客户指定货代推进', lane: 'sales', done: true },
+  { id: '2026-09-01-12471-booking', date: '2026-09-01', time: '完成', title: '12471 T.A.T. Parts：订舱函已发给阿婷', lane: 'sales', done: true },
+  { id: '2026-09-01-12471-contact', date: '2026-09-01', time: '完成', title: '12471：已更新联系人和电话，并回复预计9月25日完成', lane: 'sales', done: true },
+  { id: '2026-09-02-00240-agent', date: '2026-09-02', time: '上午', title: '00240：跟进Fracht提供中国货代联系人、邮箱和地址', lane: 'sales', done: false },
+  { id: '2026-09-02-00240-quote', date: '2026-09-02', time: '收到后', title: '00240：将中国货代资料转给阿婷，跟进FOB广州本地费用报价', lane: 'sales', done: false },
+  { id: '2026-09-02-00240-pi', date: '2026-09-02', time: '报价后', title: '00240：确认费用、更新PI并发给客户安排付款', lane: 'sales', done: false },
+  { id: '2026-09-02-12471-agent', date: '2026-09-02', time: '上午', title: '12471：跟进确认WELL-TRANS / Melody是否为上次中国订舱代理', lane: 'sales', done: false },
+  { id: '2026-09-02-12471-booking', date: '2026-09-02', time: '确认后', title: '12471：按上次盐田至布拉格路线订舱，使用新联系人Martin Sevcik', lane: 'sales', done: false }
 ];
+
+const mergeSeededTasks = (stored = []) => {
+  const customTasks = stored.filter(task => !Number.isInteger(task.id) || task.id > 8);
+  const byId = new Map(customTasks.map(task => [task.id, task]));
+  seededTasks.forEach(task => {
+    if (!byId.has(task.id)) byId.set(task.id, task);
+  });
+  return Array.from(byId.values());
+};
 
 const initialLeads = [
   { company: 'TEVOR Sp. z o.o.', country: '波兰', type: '救援车辆制造商', contact: 'Export Manager', status: '待开发', next: '发送HML-18448场景方案', priority: 'A' },
@@ -77,9 +86,23 @@ function usePersistedState(key, fallback) {
   return [value, setValue];
 }
 
+function useTaskState() {
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const current = JSON.parse(localStorage.getItem('lydia.tasks.v2'));
+      const legacy = JSON.parse(localStorage.getItem('lydia.tasks'));
+      return mergeSeededTasks(current ?? legacy ?? []);
+    } catch {
+      return seededTasks;
+    }
+  });
+  useEffect(() => localStorage.setItem('lydia.tasks.v2', JSON.stringify(tasks)), [tasks]);
+  return [tasks, setTasks];
+}
+
 function App() {
   const [page, setPage] = useState('today');
-  const [tasks, setTasks] = usePersistedState('lydia.tasks', initialTasks);
+  const [tasks, setTasks] = useTaskState();
   const [leads, setLeads] = usePersistedState('lydia.leads', initialLeads);
   const [notes, setNotes] = usePersistedState('lydia.notes', []);
   const [lane, setLane] = useState('sales');
@@ -98,7 +121,7 @@ function App() {
 
   const addQuick = (text) => {
     if (!text.trim()) return;
-    const item = { id: Date.now(), time: '待安排', title: text.trim(), lane, done: false };
+    const item = { id: Date.now(), date: localDateKey(), time: '待安排', title: text.trim(), lane, done: false };
     setTasks([...tasks, item]);
     setNotes([{ id: item.id, text: text.trim(), createdAt: new Date().toISOString() }, ...notes]);
     showToast('已加入今日计划');
@@ -174,6 +197,17 @@ function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQu
   const [capture, setCapture] = useState('');
   const laneTasks = tasks.filter(t => t.lane === lane && !t.done);
   const submit = () => { addQuick(capture); setCapture(''); };
+  const today = localDateKey();
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrow = localDateKey(tomorrowDate);
+  const taskSections = [
+    { id: 'today', label: '今日记录与待办', date: today, tasks: tasks.filter(task => task.date === today) },
+    { id: 'tomorrow', label: '明日待办', date: tomorrow, tasks: tasks.filter(task => task.date === tomorrow) },
+    { id: 'overdue', label: '待继续处理', date: '', tasks: tasks.filter(task => task.date && task.date < today && !task.done) },
+    { id: 'history', label: '近期完成', date: '', tasks: tasks.filter(task => task.date && task.date < today && task.done) },
+    { id: 'other', label: '其他计划', date: '', tasks: tasks.filter(task => !task.date) }
+  ].filter(section => section.tasks.length);
   return <>
     <PageHead title="今日工作台" subtitle="把客户推进、英语训练和个人品牌做成每天可完成的动作" />
     <section className="progress-strip">
@@ -184,8 +218,11 @@ function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQu
     </section>
     <div className="dashboard-grid">
       <section className="panel day-plan">
-        <div className="panel-title"><div><CheckSquare size={19}/>今日计划</div><span>已完成 {doneCount} / {tasks.length}</span></div>
-        <div className="task-list">{tasks.map(task => <label className={`task-row ${task.done ? 'done' : ''}`} key={task.id}><input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)}/><span className="custom-check">{task.done && <Check size={14}/>}</span><time>{task.time}</time><span>{task.title}</span></label>)}</div>
+        <div className="panel-title"><div><CheckSquare size={19}/>工作记录与下一步</div><span>已完成 {doneCount} / {tasks.length}</span></div>
+        <div className="task-list">{taskSections.map(section => <div className="task-section" key={section.id}>
+          <div className="task-section-title"><strong>{section.label}</strong>{section.date && <span>{section.date.slice(5).replace('-', '月')}日</span>}</div>
+          {section.tasks.map(task => <label className={`task-row ${task.done ? 'done' : ''}`} key={task.id}><input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)}/><span className="custom-check">{task.done && <Check size={14}/>}</span><time>{task.time}</time><span>{task.title}</span></label>)}
+        </div>)}</div>
       </section>
       <section className="panel focus-panel">
         <div className="lane-tabs">{Object.entries(laneMeta).map(([id, meta]) => <button style={{'--lane': meta.color}} className={lane === id ? 'active' : ''} onClick={() => setLane(id)} key={id}>{meta.label}<span>{tasks.filter(t => t.lane === id && !t.done).length}</span></button>)}</div>
