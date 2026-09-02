@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowLeft, ArrowRight, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
   Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
-  FileSpreadsheet, FileText, Globe2, GraduationCap, Home, Languages,
+  ExternalLink, FileSpreadsheet, FileText, Filter, Globe2, GraduationCap, Home, Languages,
   Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper,
   PackageSearch, PanelLeftClose, PenLine, Plus, Search, Send, Settings, Share2,
-  Sparkles, Target, Upload, UsersRound, X
+  Sparkles, Target, Trash2, Upload, UsersRound, X
 } from 'lucide-react';
 import './styles.css';
 import './ielts-bank.css';
@@ -67,7 +67,7 @@ const navGroups = [
     ['today', '今日工作台', Home], ['crm', '客户管理 CRM', UsersRound], ['intel', '行业情报', Newspaper], ['excel', 'Excel 数据中心', FileSpreadsheet]
   ]},
   { label: '学习中心', items: [
-    ['ielts', '雅思 6.5 计划', GraduationCap], ['ielts-bank', '雅思真题打卡', CheckSquare], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
+    ['ielts', '雅思 6.5 计划', GraduationCap], ['ielts-bank', '雅思真题练习', CheckSquare], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
   ]},
   { label: '社媒中心', items: [
     ['social', '内容工作台', Share2], ['linkedin', 'LinkedIn 运营', Send], ['calendar', '内容日历', CalendarDays]
@@ -154,16 +154,16 @@ function App() {
     showToast('CRM 已导出，可用 Excel 打开');
   };
 
-  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', 'ielts-bank': '雅思真题打卡', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
+  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', 'ielts-bank': '雅思真题练习', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
 
   return <div className="app-shell">
     <Sidebar page={page} setPage={setPage} open={mobileMenu} close={() => setMobileMenu(false)} />
     <main className="main-shell">
       <Topbar title={titles[page] || 'Lydia Workbench'} query={query} setQuery={setQuery} openMenu={() => setMobileMenu(true)} showToast={showToast} />
       <div className="page-wrap">
-        {page === 'today' && <Dashboard tasks={tasks} toggleTask={toggleTask} doneCount={doneCount} percent={percent} lane={lane} setLane={setLane} addQuick={addQuick} />}
+        {page === 'today' && <Dashboard tasks={tasks} toggleTask={toggleTask} doneCount={doneCount} percent={percent} lane={lane} setLane={setLane} addQuick={addQuick} setPage={setPage} />}
         {page === 'crm' && <Crm leads={leads} setLeads={setLeads} query={query} exportCsv={exportCsv} showToast={showToast} />}
-        {page === 'ielts' && <Ielts showToast={showToast} />}
+        {page === 'ielts' && <Ielts showToast={showToast} openQuestionBank={() => setPage('ielts-bank')} />}
         {page === 'ielts-bank' && <IeltsBank showToast={showToast} />}
         {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
         {page === 'intel' && <Intel showToast={showToast} />}
@@ -207,7 +207,7 @@ function Topbar({ title, query, setQuery, openMenu, showToast }) {
   </header>;
 }
 
-function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQuick }) {
+function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQuick, setPage }) {
   const [capture, setCapture] = useState('');
   const laneTasks = tasks.filter(t => t.lane === lane && !t.done);
   const submit = () => { addQuick(capture); setCapture(''); };
@@ -241,11 +241,11 @@ function Dashboard({ tasks, toggleTask, doneCount, percent, lane, setLane, addQu
       <section className="panel focus-panel">
         <div className="lane-tabs">{Object.entries(laneMeta).map(([id, meta]) => <button style={{'--lane': meta.color}} className={lane === id ? 'active' : ''} onClick={() => setLane(id)} key={id}>{meta.label}<span>{tasks.filter(t => t.lane === id && !t.done).length}</span></button>)}</div>
         <ol className="focus-list">{laneTasks.map((task, index) => <li key={task.id}><span className="rank">{index + 1}</span><span>{task.title}</span><time>{task.time}</time></li>)}</ol>
-        <button className="text-action">查看该模块全部任务 <span>→</span></button>
+        <button className="text-action" onClick={() => setPage(lane === 'sales' ? 'crm' : lane === 'ielts' ? 'ielts' : 'social')}>进入该模块 <span>→</span></button>
       </section>
     </div>
     <section className="panel intel-panel">
-      <div className="panel-title"><div><Newspaper size={19}/>LED 行业情报</div><button className="text-action">更多 →</button></div>
+      <div className="panel-title"><div><Newspaper size={19}/>LED 行业情报</div><button className="text-action" onClick={() => setPage('intel')}>更多 →</button></div>
       <div className="intel-table"><div className="intel-head"><span>时间</span><span>标题</span><span>来源</span><span>判断</span></div>{intel.map((item, i) => <div className="intel-row" key={i}><span>{item.time}</span><strong>{item.title}</strong><span>{item.source}</span><span className={`impact ${item.tone}`}>{item.impact}</span></div>)}</div>
     </section>
     <section className="quick-capture"><PenLine size={18}/><input value={capture} onChange={e => setCapture(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder={`记录${laneMeta[lane].label}的待办、灵感或下一步行动`}/><button className="icon-btn" title="添加附件"><Upload size={18}/></button><button className="send-btn" onClick={submit} title="保存"><Send size={18}/></button></section>
@@ -271,7 +271,7 @@ function Crm({ leads, setLeads, query, exportCsv, showToast }) {
   </>;
 }
 
-function Ielts({ showToast }) {
+function Ielts({ showToast, openQuestionBank }) {
   const subjectKeys = Object.keys(ieltsSubjects);
   const today = localDateKey();
   const dayNumber = Math.floor(new Date(`${today}T00:00:00`).getTime() / 86400000);
@@ -307,8 +307,8 @@ function Ielts({ showToast }) {
     showToast(needsReview ? '已加入错词本，进入下一个词' : '已掌握，进入下一个词');
   };
   const beginTraining = () => {
-    setSession({ subject: active, title: task[0], steps: subject.steps.map(() => false) });
-    showToast(`${subject.label}训练已开始`);
+    openQuestionBank();
+    showToast(`已进入${subject.label}真题库，请选择题目开始练习`);
   };
   const finishTraining = () => {
     const nextDone = [...new Set([...todayDone, active])];
@@ -358,6 +358,11 @@ function IeltsBank({ showToast }) {
   const [subject, setSubject] = useState('listening');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('全部');
+  const [partFilter, setPartFilter] = useState('全部');
+  const [sceneFilter, setSceneFilter] = useState('全部');
+  const [practiceItem, setPracticeItem] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = usePersistedState('lydia.ielts.catalogProgress', {});
   const subjectOrder = ['listening', 'reading', 'writing', 'speaking'];
 
@@ -374,14 +379,29 @@ function IeltsBank({ showToast }) {
   };
   const getStatus = id => progress[id]?.status || 'pending';
   const totalCompleted = Object.values(progress).filter(item => item.status === 'completed').length;
+  const startPractice = item => {
+    setItemStatus(item.id, 'active');
+    setElapsed(0);
+    setPracticeItem(item);
+  };
+
+  useEffect(() => {
+    if (!practiceItem) return undefined;
+    const timer = window.setInterval(() => setElapsed(value => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [practiceItem]);
 
   if (loadError) return <><PageHead title="雅思真题打卡" subtitle="公开题目目录每日同步，练习保留在原网站"/><section className="source-note"><Globe2/><div><strong>暂时无法加载目录</strong><span>{loadError}</span></div></section></>;
   if (!catalog) return <><PageHead title="雅思真题打卡" subtitle="正在加载听说读写真题目录…"/><section className="panel bank-loading">题库加载中…</section></>;
 
   const allRecords = subjectOrder.flatMap(key => catalog.subjects[key]?.records || []);
+  const filters = catalog.subjects[subject]?.filters || {};
   const records = (catalog.subjects[subject]?.records || []).filter(item => {
     const matchesSearch = [item.title, item.part, item.scene, ...(item.types || [])].join(' ').toLowerCase().includes(search.toLowerCase());
-    return matchesSearch && (statusFilter === 'all' || getStatus(item.id) === statusFilter);
+    const matchesType = typeFilter === '全部' || item.types?.includes(typeFilter);
+    const matchesPart = partFilter === '全部' || item.part === partFilter;
+    const matchesScene = sceneFilter === '全部' || item.scene === sceneFilter;
+    return matchesSearch && matchesType && matchesPart && matchesScene && (statusFilter === 'all' || getStatus(item.id) === statusFilter);
   });
   const todaySet = subjectOrder.map(key => {
     const list = catalog.subjects[key]?.records || [];
@@ -389,8 +409,27 @@ function IeltsBank({ showToast }) {
   }).filter(Boolean);
   const updatedDate = new Date(catalog.updatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  if (practiceItem) {
+    const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const seconds = String(elapsed % 60).padStart(2, '0');
+    return <section className="exam-workspace">
+      <header className="exam-header">
+        <button className="secondary-btn" onClick={() => setPracticeItem(null)}><ArrowLeft size={17}/>返回题库</button>
+        <div><span>{catalog.subjects[practiceItem.subject]?.label} · {practiceItem.part}</span><strong>{practiceItem.title}</strong></div>
+        <time>{minutes}:{seconds}</time>
+        <button className="secondary-btn" onClick={() => { setItemStatus(practiceItem.id, 'active'); showToast('练习进度已保存'); }}><Check size={17}/>保存进度</button>
+        <button className="primary-btn" onClick={() => { setItemStatus(practiceItem.id, 'completed'); setPracticeItem(null); }}>完成练习</button>
+      </header>
+      <div className="exam-source-bar">
+        <div><Globe2 size={17}/><span>工作台内直接加载即刻说雅思原题页；题干、音频、选项、答案和解析仍由原站提供。</span></div>
+        <a href={practiceItem.originalUrl} target="_blank" rel="noreferrer">新窗口打开<ExternalLink size={15}/></a>
+      </div>
+      <iframe className="exam-frame" src={practiceItem.originalUrl} title={`${practiceItem.title} 雅思练习`} allow="autoplay; clipboard-write; microphone" />
+    </section>;
+  }
+
   return <>
-    <PageHead title="雅思真题打卡" subtitle={`来自即刻说雅思公开目录 · 每日自动更新 · 最近更新 ${updatedDate}`} action={<a className="secondary-btn" href={catalog.sourceUrl} target="_blank" rel="noreferrer"><Globe2 size={17}/>打开原题库</a>} />
+    <PageHead title="雅思真题练习" subtitle={`即刻说雅思原题页内嵌练习 · 题库目录更新 ${updatedDate}`} action={<a className="secondary-btn" href={catalog.sourceUrl} target="_blank" rel="noreferrer"><Globe2 size={17}/>打开原站</a>} />
     <section className="bank-summary">
       <div className="bank-goal"><span>题库总量</span><strong>{allRecords.length}</strong><small>仅同步公开目录，不复制题目正文</small></div>
       {subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => setSubject(key)} key={key}><span>{catalog.subjects[key].label}</span><strong>{catalog.subjects[key].total}</strong><small>已完成 {catalog.subjects[key].records.filter(item => getStatus(item.id) === 'completed').length}</small></button>)}
@@ -398,11 +437,12 @@ function IeltsBank({ showToast }) {
     </section>
     <section className="panel daily-bank">
       <div className="panel-title"><div><CalendarDays size={19}/>今日四科打卡</div><span>每天各完成1题</span></div>
-      <div className="daily-bank-grid">{todaySet.map(item => <article key={item.id} className={getStatus(item.id)}><div><span>{catalog.subjects[item.subject].label}</span><small>{item.part || item.types?.[0]}</small></div><strong>{item.title}</strong><div className="bank-actions"><a href={item.originalUrl} target="_blank" rel="noreferrer">去原站练习 →</a><button title="完成打卡" onClick={() => setItemStatus(item.id, getStatus(item.id) === 'completed' ? 'pending' : 'completed')}><Check size={17}/></button></div></article>)}</div>
+      <div className="daily-bank-grid">{todaySet.map(item => <article key={item.id} className={getStatus(item.id)}><div><span>{catalog.subjects[item.subject].label}</span><small>{item.part || item.types?.[0]}</small></div><strong>{item.title}</strong><div className="bank-actions"><button className="practice-link" onClick={() => startPractice(item)}>在工作台练习 →</button><button title="完成打卡" onClick={() => setItemStatus(item.id, getStatus(item.id) === 'completed' ? 'pending' : 'completed')}><Check size={17}/></button></div></article>)}</div>
     </section>
     <section className="panel bank-library">
-      <div className="bank-toolbar"><div className="subject-tabs">{subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => setSubject(key)} key={key}>{catalog.subjects[key].label}<span>{catalog.subjects[key].total}</span></button>)}</div><label><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索题目、场景、题型"/></label><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">全部状态</option><option value="pending">未开始</option><option value="active">进行中</option><option value="completed">已完成</option></select></div>
-      <div className="bank-list">{records.slice(0, 80).map(item => { const itemStatus = getStatus(item.id); return <article key={item.id} className={itemStatus}><button className="status-toggle" title="切换状态" onClick={() => setItemStatus(item.id, itemStatus === 'pending' ? 'active' : itemStatus === 'active' ? 'completed' : 'pending')}>{itemStatus === 'completed' ? <Check size={16}/> : itemStatus === 'active' ? <Activity size={16}/> : <span/>}</button><div className="bank-item-main"><div><strong>{item.title}</strong><span>{item.part}</span></div><p>{[...(item.types || []), item.scene, item.hitTime].filter(Boolean).join(' · ')}</p></div><div className="bank-item-meta">{item.accuracy >= 0 && <span>正确率 {item.accuracy}%</span>}{item.practitioners >= 0 && <span>{item.practitioners}人练习</span>}</div><a href={item.originalUrl} target="_blank" rel="noreferrer">开始练习 →</a></article> })}</div>
+      <div className="bank-toolbar"><div className="subject-tabs">{subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => { setSubject(key); setTypeFilter('全部'); setPartFilter('全部'); setSceneFilter('全部'); }} key={key}>{catalog.subjects[key].label}<span>{catalog.subjects[key].total}</span></button>)}</div><label><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索题目、场景、题型"/></label><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">全部状态</option><option value="pending">未开始</option><option value="active">进行中</option><option value="completed">已完成</option></select></div>
+      <div className="bank-filters"><Filter size={16}/><select value={typeFilter} onChange={event => setTypeFilter(event.target.value)}>{['全部', ...(filters.types || []).filter(value => value !== '全部')].map(value => <option key={value}>{value}</option>)}</select><select value={partFilter} onChange={event => setPartFilter(event.target.value)}>{['全部', ...(filters.parts || []).filter(value => value !== '全部')].map(value => <option key={value}>{value}</option>)}</select><select value={sceneFilter} onChange={event => setSceneFilter(event.target.value)}>{['全部', ...(filters.scenes || []).filter(value => value !== '全部')].map(value => <option key={value}>{value}</option>)}</select><span>{records.length} 道匹配题目</span></div>
+      <div className="bank-list">{records.slice(0, 80).map(item => { const itemStatus = getStatus(item.id); return <article key={item.id} className={itemStatus}><button className="status-toggle" title="切换状态" onClick={() => setItemStatus(item.id, itemStatus === 'pending' ? 'active' : itemStatus === 'active' ? 'completed' : 'pending')}>{itemStatus === 'completed' ? <Check size={16}/> : itemStatus === 'active' ? <Activity size={16}/> : <span/>}</button><div className="bank-item-main"><div><strong>{item.title}</strong><span>{item.part}</span></div><p>{[...(item.types || []), item.scene, item.hitTime].filter(Boolean).join(' · ')}</p></div><div className="bank-item-meta">{item.accuracy >= 0 && <span>正确率 {item.accuracy}%</span>}{item.practitioners >= 0 && <span>{item.practitioners}人练习</span>}</div><button className="practice-link" onClick={() => startPractice(item)}>开始练习 →</button></article> })}</div>
       {records.length > 80 && <div className="bank-footnote">当前显示前80条，请通过搜索和状态筛选缩小范围。</div>}
     </section>
   </>;
@@ -410,13 +450,48 @@ function IeltsBank({ showToast }) {
 
 function Social({ showToast }) {
   const [platform, setPlatform] = useState('LinkedIn');
+  const [title, setTitle] = usePersistedState('lydia.social.title', '多电池兼容工作灯：为什么能减少渠道库存');
   const [draft, setDraft] = usePersistedState('lydia.social.draft', 'A portable work light should solve a real job-site problem: reliable illumination without adding another battery system.');
-  return <><PageHead title="社媒内容工作台" subtitle="从产品知识、客户问题和日常工作中持续积累专业内容" action={<button className="primary-btn" onClick={() => showToast('草稿已保存')}><Check size={17}/>保存草稿</button>} />
-    <div className="social-grid"><section className="panel content-editor"><div className="platform-tabs">{['LinkedIn','Facebook','Instagram'].map(p => <button className={platform === p ? 'active' : ''} onClick={() => setPlatform(p)} key={p}>{p}</button>)}</div><label>内容主题<input defaultValue="多电池兼容工作灯：为什么能减少渠道库存"/></label><label>正文<textarea value={draft} onChange={e => setDraft(e.target.value)}/></label><div className="editor-actions"><span>{draft.length} 字符</span><button className="secondary-btn"><Sparkles size={17}/>优化表达</button><button className="primary-btn" onClick={() => showToast(`${platform}内容已加入排期`)}><CalendarDays size={17}/>加入排期</button></div></section><section className="panel content-queue"><div className="panel-title"><div><CalendarDays size={19}/>本周排期</div></div>{[['周二','LinkedIn','HML-18448应用场景'],['周四','Facebook','展会准备幕后记录'],['周六','Instagram','产品细节短视频']].map(x => <div className="queue-row" key={x[0]}><time>{x[0]}</time><div><strong>{x[1]}</strong><span>{x[2]}</span></div><MoreHorizontal size={17}/></div>)}</section></div>
+  const [publishDate, setPublishDate] = useState(localDateKey(new Date(Date.now() + 86400000)));
+  const [queue, setQueue] = usePersistedState('lydia.social.queue.v2', []);
+  const saveDraft = () => showToast('草稿已保存在本机');
+  const optimize = () => {
+    const cleaned = draft.replace(/\s+/g, ' ').replace(/\. /g, '.\n\n').trim();
+    setDraft(cleaned);
+    showToast('已整理段落和多余空格');
+  };
+  const schedulePost = () => {
+    if (!title.trim() || !draft.trim()) return showToast('请先填写主题和正文');
+    const item = { id: Date.now(), platform, title: title.trim(), draft: draft.trim(), date: publishDate, status: '待发布' };
+    setQueue([...queue, item].sort((a, b) => a.date.localeCompare(b.date)));
+    showToast(`${platform}内容已加入 ${publishDate} 排期`);
+  };
+  return <><PageHead title="社媒内容工作台" subtitle="从草稿、排期到发布状态，每一步都可编辑和保存" action={<button className="primary-btn" onClick={saveDraft}><Check size={17}/>保存草稿</button>} />
+    <div className="social-grid"><section className="panel content-editor"><div className="platform-tabs">{['LinkedIn','Facebook','Instagram'].map(p => <button className={platform === p ? 'active' : ''} onClick={() => setPlatform(p)} key={p}>{p}</button>)}</div><label>内容主题<input value={title} onChange={event => setTitle(event.target.value)}/></label><label>正文<textarea value={draft} onChange={e => setDraft(e.target.value)}/></label><div className="schedule-control"><label>发布日期<input type="date" value={publishDate} onChange={event => setPublishDate(event.target.value)}/></label></div><div className="editor-actions"><span>{draft.length} 字符</span><button className="secondary-btn" onClick={optimize}><Sparkles size={17}/>整理表达</button><button className="primary-btn" onClick={schedulePost}><CalendarDays size={17}/>加入排期</button></div></section><section className="panel content-queue"><div className="panel-title"><div><CalendarDays size={19}/>发布排期</div><span>{queue.length} 条</span></div>{queue.length ? queue.map(item => <div className="queue-row" key={item.id}><time>{item.date.slice(5)}</time><div><strong>{item.platform}</strong><span>{item.title}</span><button className={item.status === '已发布' ? 'published' : ''} onClick={() => setQueue(queue.map(row => row.id === item.id ? { ...row, status: row.status === '已发布' ? '待发布' : '已发布' } : row))}>{item.status}</button></div><button className="queue-delete" title="删除" onClick={() => setQueue(queue.filter(row => row.id !== item.id))}><Trash2 size={16}/></button></div>) : <div className="empty-queue"><CalendarDays size={25}/><span>暂无排期，从左侧加入第一条内容。</span></div>}</section></div>
   </>;
 }
 
-function Intel({ showToast }) { return <><PageHead title="LED 行业情报" subtitle="只保留对客户开发、产品选择和风险判断有用的信息" action={<button className="primary-btn" onClick={() => showToast('正式联网源需在服务器端配置')}><Activity size={17}/>更新情报</button>} /><section className="source-note"><Globe2 size={19}/><div><strong>联网信息源接口已预留</strong><span>正式版建议接入Google News/RSS、官方法规网站、展会目录与授权商业数据库。网页不会直接保存密钥。</span></div></section><section className="panel intel-library">{intel.concat(intel.slice(0,2)).map((item,i) => <article key={i}><div><span>{item.source}</span><time>{item.time}</time></div><h3>{item.title}</h3><p>已进入待核验队列。确认来源、发布时间及对HANMA产品和客户的实际影响后再写入销售结论。</p><footer><span className={`impact ${item.tone}`}>{item.impact}</span><button>查看与分析 →</button></footer></article>)}</section></> }
+function Intel({ showToast }) {
+  const [activeIndex, setActiveIndex] = useState(null);
+  const [lastChecked, setLastChecked] = usePersistedState('lydia.intel.lastChecked', '尚未更新');
+  const [analyses, setAnalyses] = usePersistedState('lydia.intel.analyses', {});
+  const items = intel.concat(intel.slice(0, 2));
+  const activeItem = activeIndex === null ? null : items[activeIndex];
+  const updateIntel = () => {
+    const stamp = new Date().toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setLastChecked(stamp);
+    showToast(`已记录本次检查：${stamp}`);
+  };
+  const saveAnalysis = event => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setAnalyses({ ...analyses, [activeIndex]: { evidence: data.get('evidence'), conclusion: data.get('conclusion'), action: data.get('action'), status: data.get('status'), updatedAt: new Date().toISOString() } });
+    setActiveIndex(null);
+    showToast('情报分析已保存');
+  };
+  const saved = activeIndex === null ? {} : analyses[activeIndex] || {};
+  return <><PageHead title="LED 行业情报" subtitle={`核验来源、记录判断并转化为销售行动 · 上次检查 ${lastChecked}`} action={<button className="primary-btn" onClick={updateIntel}><Activity size={17}/>记录本次检查</button>} /><section className="source-note"><Globe2 size={19}/><div><strong>当前条目为待核验情报线索</strong><span>点击“查看与分析”后录入原始来源、对HANMA的影响和下一步行动，不把未核实内容当成事实。</span></div></section><section className="panel intel-library">{items.map((item,i) => <article key={`${item.title}-${i}`}><div><span>{item.source}</span><time>{item.time}</time></div><h3>{item.title}</h3><p>{analyses[i]?.conclusion || '待核验：尚未录入可追溯来源和销售结论。'}</p><footer><span className={`impact ${item.tone}`}>{analyses[i]?.status || item.impact}</span><button onClick={() => setActiveIndex(i)}>查看与分析 →</button></footer></article>)}</section>{activeItem && <Modal title={activeItem.title} close={() => setActiveIndex(null)}><form className="analysis-form" onSubmit={saveAnalysis}><label>原始来源 / 证据链接<input name="evidence" defaultValue={saved.evidence || ''} placeholder="粘贴官方网站、行业协会或客户原文链接"/></label><label>对HANMA的实际影响<textarea name="conclusion" defaultValue={saved.conclusion || ''} placeholder="说明影响哪类产品、市场或客户"/></label><label>下一步行动<textarea name="action" defaultValue={saved.action || ''} placeholder="例如：向欧洲经销商确认认证要求"/></label><label>状态<select name="status" defaultValue={saved.status || '待核验'}><option>待核验</option><option>已核验</option><option>机会</option><option>风险</option><option>不采用</option></select></label><div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setActiveIndex(null)}>取消</button><button className="primary-btn">保存分析</button></div></form></Modal>}</>;
+}
 
 function ExcelCenter({ leads, exportCsv, showToast }) { return <><PageHead title="Excel 数据中心" subtitle="统一导入、清洗、去重并导出客户与工作记录" action={<button className="primary-btn" onClick={exportCsv}><Download size={17}/>导出当前CRM</button>} /><div className="excel-grid"><section className="panel upload-zone"><Upload size={28}/><h2>导入客户表格</h2><p>支持下一阶段接入 .xlsx、.csv；当前演示版提供CSV导出。</p><button className="secondary-btn" onClick={() => showToast('Excel导入将在云端版启用')}>选择文件</button></section><section className="panel"><div className="panel-title"><div><Database size={19}/>当前数据</div></div><div className="data-health"><strong>{leads.length}</strong><span>客户记录</span><strong>{leads.filter(x=>x.contact !== '待确认').length}</strong><span>有联系人</span><strong>{leads.filter(x=>x.priority === 'A').length}</strong><span>A级机会</span></div></section></div><section className="panel rules-list"><div className="panel-title"><div><FileSpreadsheet size={19}/>标准化规则</div></div>{['保留客户历史记录原文，不自动改写','官网、LinkedIn及公开邮箱分别保留证据链接','未核实联系人和推测信息标记为待确认','同一客户的多个历史编码合并维护'].map((x,i)=><div key={x}><span>{i+1}</span><p>{x}</p><Check size={17}/></div>)}</section></> }
 
