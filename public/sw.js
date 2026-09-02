@@ -1,4 +1,4 @@
-const CACHE = 'lydia-workbench-v3';
+const CACHE = 'lydia-workbench-v4';
 const CORE = ['./', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {

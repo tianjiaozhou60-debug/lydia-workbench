@@ -14,7 +14,9 @@ import './ielts-learning.css';
 import { contextParagraphs, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').then(registration => registration.update()));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(registration => registration.update()).catch(() => {});
+  });
 }
 
 const localDateKey = (date = new Date()) => {
@@ -78,25 +80,37 @@ const laneMeta = {
   social: { label: '社媒发布', color: '#b36500' }
 };
 
+const readStorage = (key, fallback) => {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored === null ? fallback : JSON.parse(stored);
+  } catch {
+    return fallback;
+  }
+};
+
+const writeStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Embedded browsers may block local storage. The app should remain usable in memory.
+  }
+};
+
 function usePersistedState(key, fallback) {
-  const [value, setValue] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-  });
-  useEffect(() => localStorage.setItem(key, JSON.stringify(value)), [key, value]);
+  const [value, setValue] = useState(() => readStorage(key, fallback));
+  useEffect(() => writeStorage(key, value), [key, value]);
   return [value, setValue];
 }
 
 function useTaskState() {
   const [tasks, setTasks] = useState(() => {
-    try {
-      const current = JSON.parse(localStorage.getItem('lydia.tasks.v2'));
-      const legacy = JSON.parse(localStorage.getItem('lydia.tasks'));
-      return mergeSeededTasks(current ?? legacy ?? []);
-    } catch {
-      return seededTasks;
-    }
+    const current = readStorage('lydia.tasks.v2', null);
+    const legacy = readStorage('lydia.tasks', null);
+    const stored = current ?? legacy;
+    return mergeSeededTasks(Array.isArray(stored) ? stored : []);
   });
-  useEffect(() => localStorage.setItem('lydia.tasks.v2', JSON.stringify(tasks)), [tasks]);
+  useEffect(() => writeStorage('lydia.tasks.v2', tasks), [tasks]);
   return [tasks, setTasks];
 }
 
