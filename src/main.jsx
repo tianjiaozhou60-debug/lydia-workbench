@@ -30,15 +30,23 @@ const seededTasks = [
   { id: '2026-09-01-00240-booking', date: '2026-09-01', time: '完成', title: '00240 Rindab：订舱函已发给阿婷，按客户指定货代推进', lane: 'sales', done: true },
   { id: '2026-09-01-12471-booking', date: '2026-09-01', time: '完成', title: '12471 T.A.T. Parts：订舱函已发给阿婷', lane: 'sales', done: true },
   { id: '2026-09-01-12471-contact', date: '2026-09-01', time: '完成', title: '12471：已更新联系人和电话，并回复预计9月25日完成', lane: 'sales', done: true },
-  { id: '2026-09-02-00240-agent', date: '2026-09-02', time: '上午', title: '00240：跟进Fracht提供中国货代联系人、邮箱和地址', lane: 'sales', done: false },
+  { id: '2026-09-02-00240-city-replied', date: '2026-09-02', time: '完成', title: '00240 Rindab：Fracht已询问从哪个城市发货，已回复广州发货', lane: 'sales', done: true },
+  { id: '2026-09-02-00240-agent-wait', date: '2026-09-02', time: '等待中', title: '00240 Rindab：等待Fracht发送中国货代的联系人、邮箱、电话和地址', lane: 'sales', done: false },
   { id: '2026-09-02-00240-quote', date: '2026-09-02', time: '收到后', title: '00240：将中国货代资料转给阿婷，跟进FOB广州本地费用报价', lane: 'sales', done: false },
   { id: '2026-09-02-00240-pi', date: '2026-09-02', time: '报价后', title: '00240：确认费用、更新PI并发给客户安排付款', lane: 'sales', done: false },
-  { id: '2026-09-02-12471-agent', date: '2026-09-02', time: '上午', title: '12471：跟进确认WELL-TRANS / Melody是否为上次中国订舱代理', lane: 'sales', done: false },
-  { id: '2026-09-02-12471-booking', date: '2026-09-02', time: '确认后', title: '12471：按上次盐田至布拉格路线订舱，使用新联系人Martin Sevcik', lane: 'sales', done: false }
+  { id: '2026-09-02-12471-forwarder-email', date: '2026-09-02', time: '已确认', title: '12471 T.A.T. Parts：目前只有一个货代邮箱，货代资料不完整', lane: 'sales', done: true },
+  { id: '2026-09-02-12471-forwarder-wait', date: '2026-09-02', time: '等待中', title: '12471 T.A.T. Parts：等待客户补充完整货代信息（公司、联系人、电话、邮箱和地址）', lane: 'sales', done: false },
+  { id: '2026-09-02-12471-forwarder-next', date: '2026-09-02', time: '收到后', title: '12471 T.A.T. Parts：收到完整货代资料后转给阿婷并继续订舱', lane: 'sales', done: false }
 ];
 
+const retiredSeedTaskIds = new Set([
+  '2026-09-02-00240-agent',
+  '2026-09-02-12471-agent',
+  '2026-09-02-12471-booking'
+]);
+
 const mergeSeededTasks = (stored = []) => {
-  const customTasks = stored.filter(task => !Number.isInteger(task.id) || task.id > 8);
+  const customTasks = stored.filter(task => (!Number.isInteger(task.id) || task.id > 8) && !retiredSeedTaskIds.has(task.id));
   const byId = new Map(customTasks.map(task => [task.id, task]));
   seededTasks.forEach(task => {
     if (!byId.has(task.id)) byId.set(task.id, task);
