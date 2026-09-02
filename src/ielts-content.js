@@ -71,29 +71,28 @@ export const ieltsVocabulary = [
   { word: 'mitigate', ipa: '/ˈmɪtɪɡeɪt/', meaning: '缓解；减轻', example: 'Public transport can help mitigate traffic congestion.' }
 ];
 
-export const contextParagraphs = [
-  {
-    parts: [
-      'The city council faced a ', ['controversial', '/ˌkɒntrəˈvɜːʃl/ 有争议的'], ' issue when drafting the new ',
-      ['budget', '/ˈbʌdʒɪt/ 预算'], '. Many local leaders began ', ['prioritising', '/praɪˈɒrətaɪzɪŋ/ 优先考虑'],
-      ' public infrastructure over smaller projects, hoping to ', ['boost', '/buːst/ 促进；提高'], ' economic growth.'
-    ],
-    translation: '市议会在制定新预算时面临一个有争议的议题。许多地方领导人开始优先考虑公共基础设施，希望以此促进经济增长。'
-  },
-  {
-    parts: [
-      'Experts warned that relying on short-term solutions might ', ['boomerang', '/ˈbuːməræŋ/ 产生反效果'],
-      ' in the future. A ', ['dearth of', '/dɜːθ əv/ 缺乏'], ' skilled labour could leave companies ',
-      ['worse off', '/wɜːs ɒf/ 处境更差'], ' than before.'
-    ],
-    translation: '专家警告，依赖短期方案未来可能产生反效果。专业人才匮乏可能使企业的处境比以前更差。'
-  },
-  {
-    parts: [
-      'An ', ['esteemed', '/ɪˈstiːmd/ 受尊敬的'], ' institute proposed a plan to ',
-      ['liberalise', '/ˈlɪbrəlaɪz/ 放宽限制'], ' trade rules and ', ['refocus', '/ˌriːˈfəʊkəs/ 重新聚焦'],
-      ' resources on training, thereby ', ['eliminating', '/ɪˈlɪmɪneɪtɪŋ/ 消除'], ' structural barriers.'
-    ],
-    translation: '一家受人尊敬的研究所提出放宽贸易规则，并将资源重新聚焦于培训，从而消除结构性障碍。'
-  }
+export const contextParagraphSets = [
+  [
+    { parts: ['The city council faced a ', ['controversial', '/ˌkɒntrəˈvɜːʃl/ 有争议的'], ' issue when drafting the new ', ['budget', '/ˈbʌdʒɪt/ 预算'], '. Many local leaders began ', ['prioritising', '/praɪˈɒrətaɪzɪŋ/ 优先考虑'], ' public infrastructure over smaller projects, hoping to ', ['boost', '/buːst/ 促进；提高'], ' economic growth.'], translation: '市议会在制定新预算时面临一个有争议的议题。许多地方领导人开始优先考虑公共基础设施，希望以此促进经济增长。' },
+    { parts: ['Experts warned that relying on short-term solutions might ', ['boomerang', '/ˈbuːməræŋ/ 产生反效果'], ' in the future. A ', ['dearth of', '/dɜːθ əv/ 缺乏'], ' skilled labour could leave companies ', ['worse off', '/wɜːs ɒf/ 处境更差'], ' than before.'], translation: '专家警告，依赖短期方案未来可能产生反效果。专业人才匮乏可能使企业的处境比以前更差。' },
+    { parts: ['An ', ['esteemed', '/ɪˈstiːmd/ 受尊敬的'], ' institute proposed a plan to ', ['liberalise', '/ˈlɪbrəlaɪz/ 放宽限制'], ' trade rules and ', ['refocus', '/ˌriːˈfəʊkəs/ 重新聚焦'], ' resources on training, thereby ', ['eliminating', '/ɪˈlɪmɪneɪtɪŋ/ 消除'], ' structural barriers.'], translation: '一家受人尊敬的研究所提出放宽贸易规则，并将资源重新聚焦于培训，从而消除结构性障碍。' }
+  ],
+  [
+    { parts: ['Cities are expanding public transport to ', ['mitigate', '/ˈmɪtɪɡeɪt/ 缓解'], ' congestion and reduce vehicle ', ['emissions', '/ɪˈmɪʃənz/ 排放物'], '. The policy is expected to produce ', ['tangible', '/ˈtændʒəbl/ 切实的'], ' environmental benefits.'], translation: '城市正在扩大公共交通，以缓解拥堵并减少车辆排放。该政策预计将带来切实的环境效益。' },
+    { parts: ['However, the transition requires a ', ['substantial', '/səbˈstænʃl/ 大量的'], ' investment. Authorities must ', ['allocate', '/ˈæləkeɪt/ 分配'], ' funds carefully and ensure that services remain ', ['accessible', '/əkˈsesəbl/ 易于使用的'], ' to low-income residents.'], translation: '然而，转型需要大量投资。当局必须谨慎分配资金，并确保低收入居民也能便利使用服务。' }
+  ],
+  [
+    { parts: ['Many schools have begun to ', ['integrate', '/ˈɪntɪɡreɪt/ 融合'], ' digital tools into daily lessons. Supporters argue that interactive resources can ', ['enhance', '/ɪnˈhɑːns/ 提高'], ' engagement and provide ', ['immediate', '/ɪˈmiːdiət/ 即时的'], ' feedback.'], translation: '许多学校已开始将数字工具融入日常课堂。支持者认为，互动资源可提高参与度并提供即时反馈。' },
+    { parts: ['Critics remain ', ['sceptical', '/ˈskeptɪkl/ 持怀疑态度的'], ', noting that unequal access may ', ['widen', '/ˈwaɪdn/ 扩大'], ' the achievement gap. Teacher training is therefore ', ['indispensable', '/ˌɪndɪˈspensəbl/ 不可或缺的'], '.'], translation: '批评者仍持怀疑态度，指出不平等的设备获取条件可能扩大学业差距。因此，教师培训不可或缺。' }
+  ],
+  [
+    { parts: ['Flexible working has become increasingly ', ['prevalent', '/ˈprevələnt/ 普遍的'], ' across knowledge-based industries. It can reduce commuting time and give employees greater ', ['autonomy', '/ɔːˈtɒnəmi/ 自主权'], ' over their schedules.'], translation: '弹性工作在知识型行业中越来越普遍。它可减少通勤时间，并让员工对工作安排拥有更大自主权。' },
+    { parts: ['Nevertheless, managers must establish ', ['explicit', '/ɪkˈsplɪsɪt/ 明确的'], ' expectations to prevent communication from ', ['deteriorating', '/dɪˈtɪəriəreɪtɪŋ/ 恶化'], '. Regular feedback can also ', ['foster', '/ˈfɒstə/ 促进'], ' trust within remote teams.'], translation: '尽管如此，管理者必须设定明确预期，防止沟通恶化。定期反馈也能促进远程团队内的信任。' }
+  ],
+  [
+    { parts: ['Preserving historic buildings can strengthen a city\'s cultural ', ['identity', '/aɪˈdentəti/ 身份特征'], ' and attract visitors. These sites provide ', ['compelling', '/kəmˈpelɪŋ/ 令人信服的'], ' evidence of how communities have ', ['evolved', '/ɪˈvɒlvd/ 演变'], ' over time.'], translation: '保护历史建筑能强化城市的文化身份，并吸引游客。这些场所为社区如何随时间演变提供了有力证据。' },
+    { parts: ['At the same time, restoration must be financially ', ['feasible', '/ˈfiːzəbl/ 可行的'], '. A balanced strategy can ', ['safeguard', '/ˈseɪfɡɑːd/ 保护'], ' heritage without ', ['hindering', '/ˈhɪndərɪŋ/ 阻碍'], ' necessary urban development.'], translation: '同时，修复工作必须在经济上可行。平衡的策略可以保护遗产，而不阻碍必要的城市发展。' }
+  ]
 ];
+
+export const contextParagraphs = contextParagraphSets[0];

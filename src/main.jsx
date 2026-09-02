@@ -11,7 +11,7 @@ import {
 import './styles.css';
 import './ielts-bank.css';
 import './ielts-learning.css';
-import { contextParagraphs, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
+import { contextParagraphSets, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
@@ -288,6 +288,7 @@ function Ielts({ showToast, openQuestionBank }) {
   const [session, setSession] = useState(null);
   const [translations, setTranslations] = useState([]);
   const [selectedWord, setSelectedWord] = useState('');
+  const [contextOffset, setContextOffset] = usePersistedState('lydia.ielts.contextOffset', 0);
   const [progress, setProgress] = usePersistedState('lydia.ielts.learning.v2', {
     minutesByDay: {}, checkins: {}, taskOffsets: {}, vocabIndex: 0,
     knownWords: [], reviewWords: [], reviewCursor: 0
@@ -296,6 +297,8 @@ function Ielts({ showToast, openQuestionBank }) {
   const subject = ieltsSubjects[active];
   const taskIndex = (dayNumber + subjectKeys.indexOf(active) + (progress.taskOffsets?.[active] || 0)) % subject.tasks.length;
   const task = subject.tasks[taskIndex];
+  const contextIndex = (dayNumber + Number(contextOffset || 0)) % contextParagraphSets.length;
+  const activeContextParagraphs = contextParagraphSets[contextIndex];
   const vocabIndex = progress.vocabIndex % ieltsVocabulary.length;
   const vocab = ieltsVocabulary[vocabIndex];
   const minutes = progress.minutesByDay?.[today] || 0;
@@ -333,6 +336,12 @@ function Ielts({ showToast, openQuestionBank }) {
     patchProgress({ reviewWords: [...new Set([...(progress.reviewWords || []), word])] });
     showToast(`${word} 已加入生词本`);
   };
+  const changeContext = () => {
+    setContextOffset(Number(contextOffset || 0) + 1);
+    setTranslations([]);
+    setSelectedWord('');
+    showToast('已换成新的情境短文');
+  };
   const exportReview = () => {
     if (!(progress.reviewWords || []).length) return showToast('错词本暂时为空');
     const rows = progress.reviewWords.map(word => { const item = ieltsVocabulary.find(v => v.word === word); return item ? `${item.word}\t${item.ipa}\t${item.meaning}` : word; });
@@ -341,7 +350,7 @@ function Ielts({ showToast, openQuestionBank }) {
   };
   const reviewList = progress.reviewWords || [];
   const reviewWord = reviewList.length ? reviewList[(progress.reviewCursor || 0) % reviewList.length] : '';
-  const contextDetail = contextParagraphs.flatMap(paragraph => paragraph.parts).find(part => Array.isArray(part) && part[0] === reviewWord);
+  const contextDetail = contextParagraphSets.flatMap(group => group).flatMap(paragraph => paragraph.parts).find(part => Array.isArray(part) && part[0] === reviewWord);
   const reviewDetail = ieltsVocabulary.find(item => item.word === reviewWord) || (contextDetail ? {
     word: reviewWord,
     ipa: contextDetail[1].split(' ')[0],
@@ -355,7 +364,7 @@ function Ielts({ showToast, openQuestionBank }) {
     <div className="study-grid dynamic-study"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div><span>{todayDone.length} / 4 科完成</span></div><div className="study-tabs">{subjectKeys.map(key => <button className={active === key ? 'active' : ''} onClick={() => { setActive(key); setSession(null); }} key={key}>{ieltsSubjects[key].label}{todayDone.includes(key) && <Check size={14}/>}</button>)}</div><div className="lesson"><span className="lesson-kicker">{subject.label} · {subject.duration}分钟 · 今日第 {taskIndex + 1} 项</span><h2>{task[0]}</h2><p>{task[1]}</p><small>{subject.focus}</small><button className="primary-btn" onClick={beginTraining}>{todayDone.includes(active) ? '继续下一项' : '开始训练'}</button></div></section>
       <section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>{vocabIndex + 1} / {ieltsVocabulary.length}</span></div><div className="vocab-card-nav"><button title="上一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex - 1 + ieltsVocabulary.length) % ieltsVocabulary.length })}><ArrowLeft size={17}/></button><button title="下一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length })}><ArrowRight size={17}/></button></div><strong>{vocab.word}</strong><span>{vocab.ipa}</span><p>{vocab.meaning}</p><blockquote>{vocab.example}</blockquote><div className="vocab-actions"><button onClick={() => advanceVocab(false)}><Check size={16}/>认识</button><button onClick={() => advanceVocab(true)}><X size={16}/>需复习</button></div></section></div>
     {session && <section className="panel training-session"><div className="panel-title"><div><Activity size={19}/>{session.title}</div><button onClick={() => setSession(null)}><X size={17}/></button></div><p>{ieltsSubjects[session.subject].focus}</p><div>{ieltsSubjects[session.subject].steps.map((step, index) => <label className={session.steps[index] ? 'done' : ''} key={step}><input type="checkbox" checked={session.steps[index]} onChange={() => setSession({ ...session, steps: session.steps.map((value, i) => i === index ? !value : value) })}/><span>{session.steps[index] && <Check size={14}/>}</span>{step}</label>)}</div><button className="primary-btn" disabled={!session.steps.every(Boolean)} onClick={finishTraining}>完成并进入下一项</button></section>}
-    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><span>点击高亮词查看释义并收藏</span></div>{contextParagraphs.map((paragraph, index) => <article key={index}><p>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <button className={selectedWord === part[0] ? 'selected' : ''} onClick={() => setSelectedWord(selectedWord === part[0] ? '' : part[0])} key={partIndex}>{part[0]}{selectedWord === part[0] && <span>{part[1]}<b onClick={event => { event.stopPropagation(); addReviewWord(part[0]); }}>加入生词本</b></span>}</button> : part)}</p><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>)}</section>
+    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><div className="context-actions"><span>今日第 {contextIndex + 1} 组</span><button onClick={changeContext}>换一组<ArrowRight size={14}/></button></div></div>{activeContextParagraphs.map((paragraph, index) => <article key={`${contextIndex}-${index}`}><p>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <button className={selectedWord === part[0] ? 'selected' : ''} onClick={() => setSelectedWord(selectedWord === part[0] ? '' : part[0])} key={partIndex}>{part[0]}{selectedWord === part[0] && <span>{part[1]}<b onClick={event => { event.stopPropagation(); addReviewWord(part[0]); }}>加入生词本</b></span>}</button> : part)}</p><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>)}</section>
       <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><strong>{reviewDetail.word}</strong><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p><blockquote>{reviewDetail.example}</blockquote><div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”或收藏短文中的高亮词。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
   </>;
 }

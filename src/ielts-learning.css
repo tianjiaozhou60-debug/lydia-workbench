@@ -20,6 +20,8 @@
 .training-session>.primary-btn:disabled{opacity:.4;cursor:not-allowed}
 .ielts-tools-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:16px;margin-top:16px}
 .context-reader article{padding:16px 20px;border-bottom:1px solid var(--line)}
+.context-actions{font-size:11px!important;font-weight:400!important;color:var(--muted)}
+.context-actions button{height:30px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--red);padding:0 9px;display:inline-flex;align-items:center;gap:4px;font-weight:700}
 .context-reader article:last-child{border-bottom:0}
 .context-reader article>p{font-size:14px;line-height:2;margin:0 0 10px}
 .context-reader article>p>button{display:inline;border:0;border-bottom:2px solid #1692c9;border-radius:3px;background:#e8f7fd;padding:1px 4px;margin:0 2px;font-weight:700;position:relative}
@@ -55,7 +57,7 @@
   .training-session>p{margin:16px 14px 8px}
   .training-session label{min-height:54px;align-items:center}
   .training-session>.primary-btn{margin-left:14px}
-  .context-reader .panel-title>span{display:none}
+  .context-actions span{display:none}
   .context-reader article{padding:15px 16px}
   .context-reader article>p{font-size:15px;line-height:2.15}
   .context-reader article>p>button>span{position:fixed;left:14px;right:14px;bottom:82px;min-width:0;font-size:12px}
