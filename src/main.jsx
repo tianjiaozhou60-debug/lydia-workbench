@@ -4,7 +4,7 @@ import {
   Activity, ArrowLeft, ArrowRight, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
   Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
   ExternalLink, FileSpreadsheet, FileText, Filter, Globe2, GraduationCap, Home, Languages,
-  Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper,
+  Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper, Play, RotateCcw,
   PackageSearch, PanelLeftClose, PenLine, Plus, Search, Send, Settings, Share2,
   Sparkles, Target, Trash2, Upload, UsersRound, X
 } from 'lucide-react';
@@ -12,6 +12,8 @@ import './styles.css';
 import './ielts-bank.css';
 import './ielts-learning.css';
 import { contextParagraphSets, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
+import { businessEmailVocabulary, businessStudyPlan } from './business-english.js';
+import './business-english.css';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
@@ -36,10 +38,43 @@ const seededTasks = [
   { id: '2026-09-02-00240-pi', date: '2026-09-02', time: '报价后', title: '00240：确认费用、更新PI并发给客户安排付款', lane: 'sales', done: false },
   { id: '2026-09-02-12471-forwarder-email', date: '2026-09-02', time: '已确认', title: '12471 T.A.T. Parts：目前只有一个货代邮箱，货代资料不完整', lane: 'sales', done: true },
   { id: '2026-09-02-12471-forwarder-wait', date: '2026-09-02', time: '等待中', title: '12471 T.A.T. Parts：等待客户补充完整货代信息（公司、联系人、电话、邮箱和地址）', lane: 'sales', done: false },
-  { id: '2026-09-02-12471-forwarder-next', date: '2026-09-02', time: '收到后', title: '12471 T.A.T. Parts：收到完整货代资料后转给阿婷并继续订舱', lane: 'sales', done: false }
+  { id: '2026-09-02-12471-forwarder-next', date: '2026-09-02', time: '收到后', title: '12471 T.A.T. Parts：收到完整货代资料后转给阿婷并继续订舱', lane: 'sales', done: false },
+  { id: '2026-09-03-00240-forwarder', date: '2026-09-03', time: '完成', title: '00240 Rindab：已联系客户货代，确认订单9月9日送达货代仓库', lane: 'sales', done: true },
+  { id: '2026-09-03-00240-payment', date: '2026-09-03', time: '完成', title: '00240 Rindab：已发送Invoice和PL并请客户安排尾款、回传银行付款凭证', lane: 'sales', done: true },
+  { id: '2026-09-03-00240-fob', date: '2026-09-03', time: '完成', title: '00240 Rindab：已整理7方FOB本地费，含600元送仓费合计3250元；美元报价及预留费用待确认', lane: 'sales', done: true },
+  { id: '2026-09-03-12471-barcode', date: '2026-09-03', time: '完成', title: '12471 T.A.T. Parts：已核对EAN-13条码8596722055166并整理彩盒、外箱贴标确认方案', lane: 'sales', done: true },
+  { id: '2026-09-03-12471-forwarder-reply', date: '2026-09-03', time: '完成', title: '12471 T.A.T. Parts：已整理货代回复，收到新联系方式后协调货运', lane: 'sales', done: true },
+  { id: '2026-09-03-12482-method', date: '2026-09-03', time: '完成', title: '12482 POL：货代称海运，与原空运指示不一致，已整理邮件请Tomas确认', lane: 'sales', done: true },
+  { id: '2026-09-03-12978-confirmation', date: '2026-09-03', time: '完成', title: '12978 WINCH：已整理订单确认书重发及后续订单邮件收件人确认内容', lane: 'sales', done: true },
+  { id: '2026-09-03-14916-payment', date: '2026-09-03', time: '完成', title: '14916 The Shyft Group：收到电汇付款凭证并整理回复，等待财务确认到账', lane: 'sales', done: true },
+  { id: '2026-09-03-la-shipping', date: '2026-09-03', time: '完成', title: 'LA Distribution：已整理200件空运、300件海运的货代及收货地址确认邮件', lane: 'sales', done: true },
+  { id: '2026-09-04-review-europevans', date: '2026-09-04', time: '已整理', title: '16380 Europevans：整理询价产品报价及参数，完善中性包装、附件和版本说明；整理报价邮件，说明HML-3706暂未生产', lane: 'sales', done: true },
+  { id: '2026-09-04-review-pol', date: '2026-09-04', time: '已确认', title: '12482 POL：确认本批订单海运，已与Berkman广州代理对接订舱，整理客户进度回复', lane: 'sales', done: true },
+  { id: '2026-09-04-review-tat', date: '2026-09-04', time: '已确认', title: '12471 T.A.T.：收到标签方案确认，正确型号7500.410；本批分开贴标，正在与生产协调', lane: 'sales', done: true },
+  { id: '2026-09-04-review-aeb', date: '2026-09-04', time: '已核对', title: '15070 AEB：收到订单P04435，100个HML-144192 NE，USD 5360；要求10月29日备妥，2027年1月6日到达AEB', lane: 'sales', done: true },
+  { id: '2026-09-04-review-rindab', date: '2026-09-04', time: '已整理', title: '00240 Rindab：收到货款付款凭证，整理单独USD 560运费发票及付款跟进邮件', lane: 'sales', done: true },
+  { id: '2026-09-04-review-la', date: '2026-09-04', time: '已跟进', title: 'LA Distribution：跟进200件空运、剩余300件与新订单合并海运；客户编号00290/02690待核对', lane: 'sales', done: true },
+  { id: '2026-09-04-review-mager', date: '2026-09-04', time: '已整理', title: 'MAGER：整理样品商业发票、装箱单及展会祝福回复；邮件是否发送待核实', lane: 'sales', done: true },
+  { id: '2026-09-05-la-booking', date: '2026-09-05', time: '优先', title: 'LA Distribution（00290/02690待核对）：200件空运订单订舱函和货代资料交阿婷，确认订舱及交货安排', lane: 'sales', done: false },
+  { id: '2026-09-05-tat-oa', date: '2026-09-05', time: '优先', title: '12471：生成EAN-13条码8596722055166，核对型号7500.410、尺寸、位置和扫描效果；完成工程变更后更新OA资料并同步生产。客户要求删COO: China，先内部确认标识要求', lane: 'sales', done: false },
+  { id: '2026-09-05-aeb-order', date: '2026-09-05', time: '优先', title: '15070：核对P04435价格、配置、付款条件及交期，制作PI并推进下单；全部单据注明订单号，单独开票', lane: 'sales', done: false },
+  { id: '2026-09-05-rindab-payment', date: '2026-09-05', time: '优先', title: '00240：跟进USD 560运费凭证及财务到账，核对9月9日交货安排', lane: 'sales', done: false },
+  { id: '2026-09-05-w36-report', date: '2026-09-05', time: '优先', title: '填写W36销售业绩跟踪分析表：核对订单、回款和重点客户进展；尚未确认完成', lane: 'sales', done: false },
+  { id: '2026-09-05-pol-booking', date: '2026-09-05', time: '跟进', title: '12482：跟进海运订舱结果、船期、截仓时间及送仓要求，向客户更新进度', lane: 'sales', done: false },
+  { id: '2026-09-05-europevans-quote', date: '2026-09-05', time: '跟进', title: '16380：确认报价已发送且客户收到，跟进重点型号、预计采购数量及补充资料需求', lane: 'sales', done: false },
+  { id: '2026-09-05-tat-forwarder', date: '2026-09-05', time: '待回复', title: '12471：跟进客户提供新货代邮箱及完整联系方式', lane: 'sales', done: false },
+  { id: '2026-09-05-shyft-payment', date: '2026-09-05', time: '核查', title: '14916：核查电汇到账及下单进展，确认后通知客户，完成事项及时关闭', lane: 'sales', done: false },
+  { id: '2026-09-05-winch-payment', date: '2026-09-05', time: '核查', title: '12978：核查PI签回、定金及收件人确认进展，完成事项及时关闭', lane: 'sales', done: false }
 ];
 
 const retiredSeedTaskIds = new Set([
+  '2026-09-04-00240-payment-followup',
+  '2026-09-04-12471-barcode-confirm',
+  '2026-09-04-12471-production',
+  '2026-09-04-12482-method-followup',
+  '2026-09-04-12978-payment',
+  '2026-09-04-14916-finance',
+  '2026-09-04-la-confirmation',
   '2026-09-02-00240-agent',
   '2026-09-02-12471-agent',
   '2026-09-02-12471-booking'
@@ -75,7 +110,7 @@ const navGroups = [
     ['today', '今日工作台', Home], ['crm', '客户管理 CRM', UsersRound], ['intel', '行业情报', Newspaper], ['excel', 'Excel 数据中心', FileSpreadsheet]
   ]},
   { label: '学习中心', items: [
-    ['ielts', '雅思 6.5 计划', GraduationCap], ['ielts-bank', '雅思真题练习', CheckSquare], ['terms', 'LED 后装术语', Languages], ['writing', '写作与邮件批改', PenLine]
+    ['ielts', '雅思 6.5 计划', GraduationCap], ['ielts-bank', '雅思真题练习', CheckSquare], ['terms', '外贸英语词汇', Languages], ['writing', '写作与邮件批改', PenLine]
   ]},
   { label: '社媒中心', items: [
     ['social', '内容工作台', Share2], ['linkedin', 'LinkedIn 运营', Send], ['calendar', '内容日历', CalendarDays]
@@ -162,7 +197,7 @@ function App() {
     showToast('CRM 已导出，可用 Excel 打开');
   };
 
-  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', 'ielts-bank': '雅思真题练习', terms: 'LED 后装术语', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
+  const titles = { today: '今日工作台', crm: '客户管理 CRM', intel: 'LED 行业情报', excel: 'Excel 数据中心', ielts: '雅思 6.5 计划', 'ielts-bank': '雅思真题练习', terms: '外贸英语词汇', writing: '写作与邮件批改', social: '社媒内容工作台', linkedin: 'LinkedIn 运营', calendar: '内容日历' };
 
   return <div className="app-shell">
     <Sidebar page={page} setPage={setPage} open={mobileMenu} close={() => setMobileMenu(false)} />
@@ -176,7 +211,8 @@ function App() {
         {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
         {page === 'intel' && <Intel showToast={showToast} />}
         {page === 'excel' && <ExcelCenter leads={leads} exportCsv={exportCsv} showToast={showToast} />}
-        {['terms', 'writing'].includes(page) && <WritingLab mode={page} showToast={showToast} />}
+        {page === 'terms' && <BusinessEnglish showToast={showToast} />}
+        {page === 'writing' && <WritingLab mode={page} showToast={showToast} />}
       </div>
     </main>
     <MobileNav page={page} setPage={setPage} openMore={() => setMobileMenu(true)} />
@@ -512,7 +548,67 @@ function Intel({ showToast }) {
 
 function ExcelCenter({ leads, exportCsv, showToast }) { return <><PageHead title="Excel 数据中心" subtitle="统一导入、清洗、去重并导出客户与工作记录" action={<button className="primary-btn" onClick={exportCsv}><Download size={17}/>导出当前CRM</button>} /><div className="excel-grid"><section className="panel upload-zone"><Upload size={28}/><h2>导入客户表格</h2><p>支持下一阶段接入 .xlsx、.csv；当前演示版提供CSV导出。</p><button className="secondary-btn" onClick={() => showToast('Excel导入将在云端版启用')}>选择文件</button></section><section className="panel"><div className="panel-title"><div><Database size={19}/>当前数据</div></div><div className="data-health"><strong>{leads.length}</strong><span>客户记录</span><strong>{leads.filter(x=>x.contact !== '待确认').length}</strong><span>有联系人</span><strong>{leads.filter(x=>x.priority === 'A').length}</strong><span>A级机会</span></div></section></div><section className="panel rules-list"><div className="panel-title"><div><FileSpreadsheet size={19}/>标准化规则</div></div>{['保留客户历史记录原文，不自动改写','官网、LinkedIn及公开邮箱分别保留证据链接','未核实联系人和推测信息标记为待确认','同一客户的多个历史编码合并维护'].map((x,i)=><div key={x}><span>{i+1}</span><p>{x}</p><Check size={17}/></div>)}</section></> }
 
-function WritingLab({ mode, showToast }) { const [text,setText]=useState(''); return <><PageHead title={mode === 'terms' ? 'LED 后装术语' : '写作与邮件批改'} subtitle={mode === 'terms' ? '建立中英术语、参数、应用和客户价值的可检索知识库' : '先检查事实和目的，再优化欧洲客户常用商务表达'} /><section className="panel writing-lab"><div className="lab-toolbar"><button className="active">商务邮件</button><button>雅思写作</button><button>产品规格</button></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="粘贴需要检查的英文内容，或输入LED车灯术语……"/><div className="editor-actions"><span>{text.length} 字符</span><button className="primary-btn" onClick={()=>showToast('本地检查完成；AI评分需连接服务器')}><Bot size={17}/>开始检查</button></div></section></> }
+function BusinessEnglish({ showToast }) {
+  const today = localDateKey();
+  const dayNumber = Math.floor(new Date(`${today}T00:00:00`).getTime() / 86400000);
+  const [selectedWord, setSelectedWord] = useState(businessEmailVocabulary[0].word);
+  const [progress, setProgress] = usePersistedState('lydia.businessEnglish.v1', {});
+  const intervals = [1, 3, 7, 14, 30];
+  const todayIndex = dayNumber % businessStudyPlan.length;
+  const dueWords = businessEmailVocabulary.filter(item => progress[item.word]?.due && progress[item.word].due <= today && progress[item.word]?.level > 0);
+  const newWords = businessEmailVocabulary.filter(item => !progress[item.word]);
+  const todayWords = [...dueWords, ...newWords].slice(0, 5);
+  const activeWords = todayWords.length ? todayWords : businessEmailVocabulary.slice((dayNumber * 5) % businessEmailVocabulary.length, ((dayNumber * 5) % businessEmailVocabulary.length) + 5);
+  const selected = businessEmailVocabulary.find(item => item.word === selectedWord) || activeWords[0] || businessEmailVocabulary[0];
+  const learnedCount = Object.values(progress).filter(item => item.level > 0).length;
+  const masteredCount = Object.values(progress).filter(item => item.level >= 3).length;
+
+  const speak = (text, lang, rate = 0.82) => {
+    if (!('speechSynthesis' in window)) return showToast('当前浏览器不支持语音播放');
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    utterance.rate = rate;
+    window.speechSynthesis.speak(utterance);
+  };
+  const openWord = item => {
+    setSelectedWord(item.word);
+    speak(item.word, 'en-GB', 0.75);
+  };
+  const gradeWord = remembered => {
+    const current = progress[selected.word] || { level: 0 };
+    const level = remembered ? Math.min(current.level + 1, intervals.length) : 0;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + (remembered ? intervals[Math.max(0, level - 1)] : 0));
+    setProgress({ ...progress, [selected.word]: { level, due: localDateKey(dueDate), updatedAt: new Date().toISOString() } });
+    showToast(remembered ? `记忆成功，${intervals[Math.max(0, level - 1)]}天后复习` : '已加入今日重点复习');
+    const currentIndex = activeWords.findIndex(item => item.word === selected.word);
+    setSelectedWord(activeWords[(currentIndex + 1) % activeWords.length]?.word || businessEmailVocabulary[0].word);
+  };
+  const resetProgress = () => {
+    setProgress({});
+    setSelectedWord(businessEmailVocabulary[0].word);
+    showToast('学习进度已重新开始');
+  };
+
+  return <>
+    <PageHead title="外贸英语词汇" subtitle="汽车LED外贸邮件场景 · 每天5个词 · 自动安排间隔复习" />
+    <section className="business-summary">
+      <div className="business-goal"><span>本周主题</span><strong>样品与技术跟进</strong><small>HML-R0390客户邮件</small></div>
+      <Metric label="词汇总数" value={`${businessEmailVocabulary.length} 个`} pct={100}/>
+      <Metric label="已学习" value={`${learnedCount} 个`} pct={learnedCount / businessEmailVocabulary.length * 100}/>
+      <Metric label="已掌握" value={`${masteredCount} 个`} pct={masteredCount / businessEmailVocabulary.length * 100}/>
+    </section>
+    <section className="panel business-plan"><div className="panel-title"><div><CalendarDays size={19}/>7天高效学习计划</div><span>今天：{businessStudyPlan[todayIndex][1]}</span></div><div>{businessStudyPlan.map(([day, task], index) => <article className={index === todayIndex ? 'active' : ''} key={day}><strong>{day}</strong><span>{task}</span></article>)}</div></section>
+    <div className="business-learning-grid">
+      <section className="panel daily-words"><div className="panel-title"><div><BookOpen size={19}/>今日5词</div><span>点击单词自动发音</span></div><div className="word-buttons">{activeWords.map((item, index) => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}><small>{index + 1}</small><span>{item.word}</span><em>{progress[item.word]?.level ? `记忆 ${progress[item.word].level}/5` : '新词'}</em></button>)}</div><div className="all-words"><strong>本周全部词汇</strong><div>{businessEmailVocabulary.map(item => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}>{item.word}</button>)}</div></div></section>
+      <section className="panel word-detail"><div className="word-detail-head"><div><small>{selected.type}</small><h2>{selected.word}</h2><span>{selected.ipa}</span></div><button onClick={() => speak(selected.word, 'en-GB', 0.72)} title="播放英文发音"><Play size={19}/></button></div><div className="meaning"><span>中文意思</span><strong>{selected.meaning}</strong><button onClick={() => speak(selected.meaning, 'zh-CN', 0.82)}><Play size={16}/>听中文</button></div><div className="phrase"><span>常用搭配</span><strong>{selected.phrase}</strong></div><blockquote><button onClick={() => speak(selected.example, 'en-GB', 0.82)} title="朗读例句"><Play size={16}/></button><p>{selected.example}</p><span>{selected.translation}</span></blockquote><div className="memory-actions"><button className="secondary-btn" onClick={() => gradeWord(false)}><X size={17}/>还没记住</button><button className="primary-btn" onClick={() => gradeWord(true)}><Check size={17}/>记住了</button></div></section>
+    </div>
+    <section className="business-method"><div><strong>听</strong><span>点击单词，听2遍</span></div><div><strong>看</strong><span>看音标和中文意思</span></div><div><strong>说</strong><span>跟读单词和例句3遍</span></div><div><strong>用</strong><span>用搭配说一句客户邮件</span></div><button onClick={resetProgress}><RotateCcw size={15}/>重新开始</button></section>
+  </>;
+}
+
+function WritingLab({ mode, showToast }) { const [text,setText]=useState(''); return <><PageHead title="写作与邮件批改" subtitle="先检查事实和目的，再优化欧洲客户常用商务表达" /><section className="panel writing-lab"><div className="lab-toolbar"><button className="active">商务邮件</button><button>雅思写作</button><button>产品规格</button></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="粘贴需要检查的英文内容，或输入LED车灯术语……"/><div className="editor-actions"><span>{text.length} 字符</span><button className="primary-btn" onClick={()=>showToast('本地检查完成；AI评分需连接服务器')}><Bot size={17}/>开始检查</button></div></section></> }
 
 function Modal({ title, close, children }) { return <div className="modal-scrim"><div className="modal"><div className="modal-head"><h2>{title}</h2><button onClick={close}><X/></button></div>{children}</div></div> }
 function MobileNav({ page, setPage, openMore }) { return <nav className="mobile-nav">{[['today','今日',Home],['crm','客户',UsersRound],['ielts','学习',BookOpen],['social','社媒',BarChart3]].map(([id,label,Icon])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><Icon/><span>{label}</span></button>)}<button onClick={openMore}><MoreHorizontal/><span>更多</span></button></nav> }

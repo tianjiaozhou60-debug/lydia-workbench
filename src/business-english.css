@@ -1,0 +1,82 @@
+.business-summary{display:grid;grid-template-columns:1.25fr repeat(3,1fr);border:1px solid var(--line);border-radius:6px;margin-bottom:16px;overflow:hidden;background:#fff}
+.business-summary .metric{border-left:1px solid var(--line)}
+.business-goal{padding:17px 20px;background:#242424;color:#fff}
+.business-goal span,.business-goal small{display:block;font-size:11px;color:#d5d5d5}
+.business-goal strong{display:block;font-size:19px;margin:8px 0}
+.business-plan{margin-bottom:16px;overflow:hidden}
+.business-plan>div:last-child{display:grid;grid-template-columns:repeat(7,1fr)}
+.business-plan article{min-height:88px;padding:14px 12px;border-right:1px solid var(--line)}
+.business-plan article:last-child{border-right:0}
+.business-plan article.active{background:var(--red-soft);box-shadow:inset 0 -3px var(--red)}
+.business-plan article strong,.business-plan article span{display:block}
+.business-plan article strong{font-size:12px;color:var(--red)}
+.business-plan article span{font-size:11px;line-height:1.55;color:#555;margin-top:8px}
+.business-learning-grid{display:grid;grid-template-columns:minmax(430px,1.15fr) minmax(370px,.85fr);gap:16px}
+.daily-words{overflow:hidden}
+.word-buttons{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--line)}
+.word-buttons button{min-width:0;min-height:104px;border:0;border-right:1px solid var(--line);background:#fff;padding:14px 10px;text-align:left}
+.word-buttons button:last-child{border-right:0}
+.word-buttons button.active{background:#fff5f5;box-shadow:inset 0 -3px var(--red)}
+.word-buttons small,.word-buttons span,.word-buttons em{display:block}
+.word-buttons small{color:#999;font-size:10px}
+.word-buttons span{font-size:14px;font-weight:750;overflow-wrap:anywhere;margin:10px 0 7px}
+.word-buttons em{font-size:10px;font-style:normal;color:var(--green)}
+.all-words{padding:18px}
+.all-words>strong{display:block;font-size:12px;margin-bottom:12px}
+.all-words>div{display:flex;flex-wrap:wrap;gap:7px}
+.all-words button{border:1px solid var(--line);border-radius:5px;background:#fff;padding:7px 9px;font-size:11px}
+.all-words button.active{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.word-detail{padding:20px;min-height:430px}
+.word-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.word-detail-head small{color:var(--green);text-transform:uppercase;font-size:10px}
+.word-detail-head h2{font-size:28px;line-height:1.15;margin:7px 0 5px;overflow-wrap:anywhere}
+.word-detail-head span{color:#666}
+.word-detail-head>button{width:42px;height:42px;flex:none;border:0;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center}
+.meaning,.phrase{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.meaning span,.phrase span{display:block;color:#777;font-size:11px;margin-bottom:7px}
+.meaning strong,.phrase strong{font-size:15px;line-height:1.5}
+.meaning button{float:right;border:0;background:transparent;color:var(--red);display:flex;align-items:center;gap:4px;font-size:11px}
+.word-detail blockquote{position:relative;margin:20px 0 0;padding:15px 15px 15px 45px;border-left:3px solid var(--green);background:var(--soft)}
+.word-detail blockquote>button{position:absolute;left:12px;top:14px;border:0;background:transparent;color:var(--green)}
+.word-detail blockquote p{font-size:13px;line-height:1.6;margin:0}
+.word-detail blockquote span{display:block;color:#666;font-size:12px;line-height:1.6;margin-top:8px}
+.memory-actions{display:flex;gap:8px;margin-top:20px}
+.memory-actions button{flex:1;justify-content:center}
+.business-method{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:6px;margin-top:16px;background:#fff;overflow:hidden}
+.business-method>div{min-height:74px;padding:14px 18px;border-right:1px solid var(--line);display:grid;grid-template-columns:30px 1fr;align-items:center;gap:8px}
+.business-method>div strong{width:28px;height:28px;border-radius:50%;background:#f1f1f1;display:grid;place-items:center;font-size:12px}
+.business-method>div span{font-size:11px;color:#555;line-height:1.5}
+.business-method>button{position:absolute;right:8px;top:8px;border:0;background:transparent;color:#888;font-size:10px;display:flex;gap:4px;align-items:center}
+
+@media(max-width:980px){
+  .business-summary{grid-template-columns:repeat(2,1fr)}
+  .business-summary .metric:nth-child(3){border-left:0;border-top:1px solid var(--line)}
+  .business-summary .metric:nth-child(4){border-top:1px solid var(--line)}
+  .business-plan>div:last-child{grid-template-columns:repeat(4,1fr)}
+  .business-plan article{border-bottom:1px solid var(--line)}
+  .business-learning-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:720px){
+  .business-summary{grid-template-columns:1fr 1fr}
+  .business-goal{grid-column:1/-1}
+  .business-summary .metric:nth-child(2){border-left:0}
+  .business-plan .panel-title{height:auto;min-height:58px;align-items:flex-start;padding:12px 14px;gap:8px}
+  .business-plan .panel-title>span{text-align:right;max-width:52%;line-height:1.45}
+  .business-plan>div:last-child{display:flex;overflow-x:auto;scroll-snap-type:x mandatory}
+  .business-plan article{min-width:138px;scroll-snap-align:start}
+  .word-buttons{grid-template-columns:1fr}
+  .word-buttons button{min-height:64px;border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:24px 1fr 58px;align-items:center;gap:7px;padding:10px 14px}
+  .word-buttons button:last-child{border-bottom:0}
+  .word-buttons button.active{box-shadow:inset 3px 0 var(--red)}
+  .word-buttons span{font-size:16px;margin:0}
+  .word-buttons em{text-align:right}
+  .all-words{padding:14px}
+  .all-words button{min-height:38px;font-size:12px}
+  .word-detail{min-height:0;padding:18px 16px}
+  .word-detail-head h2{font-size:25px}
+  .meaning strong,.phrase strong{font-size:14px}
+  .business-method{grid-template-columns:1fr 1fr}
+  .business-method>div:nth-child(2){border-right:0}
+  .business-method>div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+}
