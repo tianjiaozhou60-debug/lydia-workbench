@@ -1,0 +1,18 @@
+.sync-control.saving,.sync-control.syncing{color:var(--amber)}
+.sync-control.error{color:var(--red)}
+.sync-modal{max-width:470px}
+.sync-message,.sync-account{padding:28px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.sync-message svg,.sync-account svg{color:var(--green)}
+.sync-message strong,.sync-account strong{margin-top:12px}
+.sync-message p,.sync-account p,.sync-form>p{font-size:12px;color:var(--muted);line-height:1.7}
+.sync-account>span{margin-top:10px;color:var(--muted);font-size:11px}
+.sync-account .secondary-btn{margin-top:8px}
+.sync-form{padding:20px}
+.sync-form label{display:block;margin-top:12px;font-size:12px;font-weight:650}
+.sync-form input{width:100%;margin-top:7px;border:1px solid #d8d8d8;border-radius:6px;padding:11px;outline:0}
+.sync-error{margin-top:12px;padding:9px 10px;background:var(--red-soft);color:var(--red);border-radius:5px;font-size:12px}
+
+@media(max-width:720px){
+  .sync-modal{width:calc(100vw - 24px)}
+  .sync-form{padding:18px 16px}
+}

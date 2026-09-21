@@ -71,6 +71,26 @@ export const ieltsVocabulary = [
   { word: 'mitigate', ipa: '/ˈmɪtɪɡeɪt/', meaning: '缓解；减轻', example: 'Public transport can help mitigate traffic congestion.' }
 ];
 
+const coreExampleTranslations = {
+  significant: '便携式工作灯的需求显著增长。',
+  controversial: '该提议在当地居民中仍有争议。',
+  prioritise: '政府应优先考虑长期公共投资。',
+  infrastructure: '可靠的基础设施支持可持续的经济增长。',
+  eliminate: '更好的培训可以消除可避免的工作失误。',
+  substantial: '该项目需要一笔可观的初期投资。',
+  consequently: '燃油价格上涨，因此运输成本增加。',
+  feasible: '远程工作并非适用于所有职业。',
+  allocate: '应为职业教育分配更多资金。',
+  deteriorate: '如果缺乏有效监管，空气质量可能恶化。',
+  compelling: '这份报告为改革提供了有力的证据。',
+  inevitable: '在不断发展的城市中，一定程度的变化不可避免。',
+  whereas: '城市人口增长，而农村人口减少。',
+  enhance: '定期反馈可以提高学习效率。',
+  mitigate: '公共交通有助于缓解交通拥堵。'
+};
+
+ieltsVocabulary.forEach(item => { item.translation = coreExampleTranslations[item.word]; });
+
 export const contextParagraphSets = [
   [
     { parts: ['The city council faced a ', ['controversial', '/ˌkɒntrəˈvɜːʃl/ 有争议的'], ' issue when drafting the new ', ['budget', '/ˈbʌdʒɪt/ 预算'], '. Many local leaders began ', ['prioritising', '/praɪˈɒrətaɪzɪŋ/ 优先考虑'], ' public infrastructure over smaller projects, hoping to ', ['boost', '/buːst/ 促进；提高'], ' economic growth.'], translation: '市议会在制定新预算时面临一个有争议的议题。许多地方领导人开始优先考虑公共基础设施，希望以此促进经济增长。' },
@@ -96,3 +116,23 @@ export const contextParagraphSets = [
 ];
 
 export const contextParagraphs = contextParagraphSets[0];
+
+const contextualVocabulary = contextParagraphSets.flatMap(group => group.flatMap(paragraph => {
+  const example = paragraph.parts.map(part => Array.isArray(part) ? part[0] : part).join('');
+  return paragraph.parts.filter(Array.isArray).map(([word, detail]) => {
+    const phonetic = detail.match(/^(\/.*\/)(?:\s+)(.*)$/);
+    return {
+      word,
+      ipa: phonetic?.[1] || detail,
+      meaning: phonetic?.[2] || '',
+      example,
+      translation: paragraph.translation
+    };
+  });
+}));
+
+export const ieltsLexicon = new Map(
+  [...contextualVocabulary, ...ieltsVocabulary].map(item => [item.word.toLowerCase(), item])
+);
+
+export const getIeltsWord = word => ieltsLexicon.get(String(word || '').toLowerCase());

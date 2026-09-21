@@ -1,19 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowLeft, ArrowRight, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
   Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
   ExternalLink, FileSpreadsheet, FileText, Filter, Globe2, GraduationCap, Home, Languages,
-  Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper, Play, RotateCcw,
+  LogIn, LogOut, Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper, Play, RotateCcw,
   PackageSearch, PanelLeftClose, PenLine, Plus, Search, Send, Settings, Share2,
-  Sparkles, Target, Trash2, Upload, UsersRound, X
+  Sparkles, Target, Trash2, Upload, UsersRound, Volume2, X
 } from 'lucide-react';
 import './styles.css';
 import './ielts-bank.css';
 import './ielts-learning.css';
-import { contextParagraphSets, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
+import { contextParagraphSets, getIeltsWord, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
 import { businessEmailVocabulary, businessStudyPlan } from './business-english.js';
+import {
+  cloudSyncConfigured, loadProgressField, readCloudSession, saveCloudSession,
+  saveProgressField, signInWithPassword, signUpWithPassword
+} from './cloud-sync.js';
+import { speakText } from './speech.js';
+import { mergeIeltsState } from './ielts-sync.js';
 import './business-english.css';
+import './cloud-sync.css';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
@@ -146,6 +153,101 @@ function usePersistedState(key, fallback) {
   return [value, setValue];
 }
 
+function useCloudSyncedState(key, fallback, cloud, field) {
+  const [value, setValue] = usePersistedState(key, fallback);
+  const valueRef = useRef(value);
+  const hydratedUser = useRef('');
+  const lastSaved = useRef('');
+  const dirty = useRef(false);
+  const sessionRef = useRef(cloud.session);
+  const userId = cloud?.session?.user?.id || '';
+  valueRef.current = value;
+  sessionRef.current = cloud.session;
+
+  const updateValue = next => {
+    dirty.current = true;
+    setValue(previous => typeof next === 'function' ? next(previous) : next);
+  };
+
+  useEffect(() => {
+    if (!userId) {
+      hydratedUser.current = '';
+      lastSaved.current = '';
+      return;
+    }
+    let cancelled = false;
+    let loading = false;
+    const syncFromCloud = async () => {
+      if (loading) return;
+      loading = true;
+      cloud.setStatus('syncing');
+      try {
+        const { session, value: remoteValue } = await loadProgressField(sessionRef.current, field);
+        if (cancelled) return;
+        if (session && session.access_token !== sessionRef.current?.access_token) cloud.setSession(session);
+        const initial = hydratedUser.current !== userId;
+        const ownerKey = `lydia.ielts.cloudOwner.${field}`;
+        const localOwner = readStorage(ownerKey, null);
+        const localValue = localOwner && localOwner !== userId ? fallback : valueRef.current;
+        const next = initial || dirty.current
+          ? mergeIeltsState(field, localValue, remoteValue)
+          : remoteValue ?? valueRef.current;
+        const serialized = JSON.stringify(next);
+        const remoteSerialized = JSON.stringify(remoteValue);
+        if (serialized !== JSON.stringify(valueRef.current)) setValue(next);
+        valueRef.current = next;
+        hydratedUser.current = userId;
+        writeStorage(ownerKey, userId);
+        lastSaved.current = serialized;
+        dirty.current = false;
+        if (serialized !== remoteSerialized) {
+          cloud.setStatus('saving');
+          const savedSession = await saveProgressField(session || sessionRef.current, field, next);
+          if (cancelled) return;
+          if (savedSession && savedSession.access_token !== sessionRef.current?.access_token) cloud.setSession(savedSession);
+        }
+        cloud.setStatus('synced');
+      } catch (error) {
+        if (!cancelled) cloud.setError(error.message);
+      } finally {
+        loading = false;
+      }
+    };
+    syncFromCloud();
+    const onFocus = () => {
+      if (document.visibilityState === 'visible' && !dirty.current) syncFromCloud();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  // This effect owns one account/field subscription; session refreshes use sessionRef.
+  }, [userId, field]);
+
+  useEffect(() => {
+    if (!userId || hydratedUser.current !== userId) return undefined;
+    const serialized = JSON.stringify(value);
+    if (serialized === lastSaved.current) return undefined;
+    cloud.setStatus('saving');
+    const timer = window.setTimeout(() => {
+      saveProgressField(sessionRef.current, field, value)
+        .then(nextSession => {
+          lastSaved.current = serialized;
+          dirty.current = false;
+          if (nextSession && nextSession.access_token !== sessionRef.current?.access_token) cloud.setSession(nextSession);
+          cloud.setStatus('synced');
+        })
+        .catch(error => cloud.setError(error.message));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [value, userId, field]);
+
+  return [value, updateValue];
+}
+
 function useTaskState() {
   const [tasks, setTasks] = useState(() => {
     const current = readStorage('lydia.tasks.v2', null);
@@ -166,11 +268,28 @@ function App() {
   const [query, setQuery] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [toast, setToast] = useState('');
+  const [cloudSession, setCloudSession] = useState(() => readCloudSession());
+  const [syncStatus, setSyncStatus] = useState(cloudSession ? 'syncing' : 'local');
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const showToast = (message) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 2200);
   };
+
+  const cloud = useMemo(() => ({
+    session: cloudSession,
+    setSession: session => {
+      saveCloudSession(session);
+      setCloudSession(session);
+    },
+    status: syncStatus,
+    setStatus: setSyncStatus,
+    setError: message => {
+      setSyncStatus('error');
+      showToast(`云同步失败：${message}`);
+    }
+  }), [cloudSession, syncStatus]);
 
   const toggleTask = (id) => setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
   const doneCount = tasks.filter(t => t.done).length;
@@ -202,12 +321,12 @@ function App() {
   return <div className="app-shell">
     <Sidebar page={page} setPage={setPage} open={mobileMenu} close={() => setMobileMenu(false)} />
     <main className="main-shell">
-      <Topbar title={titles[page] || 'Lydia Workbench'} query={query} setQuery={setQuery} openMenu={() => setMobileMenu(true)} showToast={showToast} />
+      <Topbar title={titles[page] || 'Lydia Workbench'} query={query} setQuery={setQuery} openMenu={() => setMobileMenu(true)} showToast={showToast} cloud={cloud} openSync={() => setSyncOpen(true)} />
       <div className="page-wrap">
         {page === 'today' && <Dashboard tasks={tasks} toggleTask={toggleTask} doneCount={doneCount} percent={percent} lane={lane} setLane={setLane} addQuick={addQuick} setPage={setPage} />}
         {page === 'crm' && <Crm leads={leads} setLeads={setLeads} query={query} exportCsv={exportCsv} showToast={showToast} />}
-        {page === 'ielts' && <Ielts showToast={showToast} openQuestionBank={() => setPage('ielts-bank')} />}
-        {page === 'ielts-bank' && <IeltsBank showToast={showToast} />}
+        {page === 'ielts' && <Ielts showToast={showToast} openQuestionBank={() => setPage('ielts-bank')} cloud={cloud} />}
+        {page === 'ielts-bank' && <IeltsBank showToast={showToast} cloud={cloud} />}
         {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
         {page === 'intel' && <Intel showToast={showToast} />}
         {page === 'excel' && <ExcelCenter leads={leads} exportCsv={exportCsv} showToast={showToast} />}
@@ -216,6 +335,7 @@ function App() {
       </div>
     </main>
     <MobileNav page={page} setPage={setPage} openMore={() => setMobileMenu(true)} />
+    {syncOpen && <CloudSyncModal cloud={cloud} close={() => setSyncOpen(false)} showToast={showToast} />}
     {toast && <div className="toast"><Check size={16} />{toast}</div>}
   </div>;
 }
@@ -237,16 +357,19 @@ function Sidebar({ page, setPage, open, close }) {
   </>;
 }
 
-function Topbar({ title, query, setQuery, openMenu, showToast }) {
+function Topbar({ title, query, setQuery, openMenu, showToast, cloud, openSync }) {
+  const syncLabel = cloud.session
+    ? cloud.status === 'saving' || cloud.status === 'syncing' ? '正在同步' : cloud.status === 'error' ? '同步失败' : '云同步已开启'
+    : cloudSyncConfigured ? '登录同步' : '本机已保存';
   return <header className="topbar">
     <button className="menu-btn" onClick={openMenu}><Menu /></button>
     <div className="mobile-title">{title}</div>
     <label className="global-search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索客户、产品、任务或文件"/><kbd>Ctrl K</kbd></label>
     <div className="top-actions">
       <div className="date-control"><CalendarDays size={17}/><span>{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })}</span></div>
-      <button className="sync-control" onClick={() => showToast('本机数据已保存；云同步待配置')}><Cloud size={17}/><span>本机已保存</span></button>
+      <button className={`sync-control ${cloud.status}`} title={syncLabel} aria-label={syncLabel} onClick={openSync}><Cloud size={17}/><span>{syncLabel}</span></button>
       <button className="icon-btn" title="通知"><Bell size={19}/></button>
-      <button className="profile"><CircleUserRound size={25}/><span>Lydia</span><ChevronDown size={14}/></button>
+      <button className="profile" onClick={openSync}><CircleUserRound size={25}/><span>{cloud.session?.user?.email?.split('@')[0] || 'Lydia'}</span><ChevronDown size={14}/></button>
     </div>
   </header>;
 }
@@ -315,7 +438,7 @@ function Crm({ leads, setLeads, query, exportCsv, showToast }) {
   </>;
 }
 
-function Ielts({ showToast, openQuestionBank }) {
+function Ielts({ showToast, openQuestionBank, cloud }) {
   const subjectKeys = Object.keys(ieltsSubjects);
   const today = localDateKey();
   const dayNumber = Math.floor(new Date(`${today}T00:00:00`).getTime() / 86400000);
@@ -324,11 +447,11 @@ function Ielts({ showToast, openQuestionBank }) {
   const [session, setSession] = useState(null);
   const [translations, setTranslations] = useState([]);
   const [selectedWord, setSelectedWord] = useState('');
-  const [contextOffset, setContextOffset] = usePersistedState('lydia.ielts.contextOffset', 0);
-  const [progress, setProgress] = usePersistedState('lydia.ielts.learning.v2', {
+  const [contextOffset, setContextOffset] = useCloudSyncedState('lydia.ielts.contextOffset', 0, cloud, 'ielts_context_offset');
+  const [progress, setProgress] = useCloudSyncedState('lydia.ielts.learning.v2', {
     minutesByDay: {}, checkins: {}, taskOffsets: {}, vocabIndex: 0,
     knownWords: [], reviewWords: [], reviewCursor: 0
-  });
+  }, cloud, 'ielts_learning');
   const schedule = [['周一','听力精听 + 口语Part 1'],['周二','阅读定位 + Task 1'],['周三','听力Section 3/4 + 口语Part 2'],['周四','阅读判断题 + Task 2'],['周五','听力套题 + 口语模拟'],['周六','阅读套题 + 写作复盘'],['周日','模考 + 错题复盘']];
   const subject = ieltsSubjects[active];
   const taskIndex = (dayNumber + subjectKeys.indexOf(active) + (progress.taskOffsets?.[active] || 0)) % subject.tasks.length;
@@ -341,9 +464,16 @@ function Ielts({ showToast, openQuestionBank }) {
   const todayDone = progress.checkins?.[today] || [];
   const weekDone = Object.entries(progress.checkins || {}).filter(([date]) => (new Date(today) - new Date(date)) / 86400000 < 7).reduce((sum, [, items]) => sum + items.length, 0);
   const streak = (() => { let count = 0; const cursor = new Date(`${today}T00:00:00`); while ((progress.checkins?.[localDateKey(cursor)] || []).length) { count++; cursor.setDate(cursor.getDate() - 1); } return count; })();
+  const speak = (text, options = {}) => speakText(text, { ...options, onError: showToast });
+  const openContextWord = word => {
+    setSelectedWord(selectedWord === word ? '' : word);
+    speak(word, { rate: 0.72 });
+  };
 
-  const patchProgress = patch => setProgress({ ...progress, ...patch });
-  const recordMinutes = amount => patchProgress({ minutesByDay: { ...(progress.minutesByDay || {}), [today]: minutes + amount } });
+  const patchProgress = patch => setProgress(previous => ({ ...previous, ...patch }));
+  const recordMinutes = amount => setProgress(previous => ({ ...previous, minutesByDay: {
+    ...(previous.minutesByDay || {}), [today]: (previous.minutesByDay?.[today] || 0) + amount
+  } }));
   const advanceVocab = (needsReview) => {
     const list = needsReview ? [...new Set([...(progress.reviewWords || []), vocab.word])] : (progress.reviewWords || []).filter(word => word !== vocab.word);
     patchProgress({
@@ -369,7 +499,7 @@ function Ielts({ showToast, openQuestionBank }) {
     showToast(`${subject.label}已完成，下一项训练已更新`);
   };
   const addReviewWord = word => {
-    patchProgress({ reviewWords: [...new Set([...(progress.reviewWords || []), word])] });
+    setProgress(previous => ({ ...previous, reviewWords: [...new Set([...(previous.reviewWords || []), word])] }));
     showToast(`${word} 已加入生词本`);
   };
   const changeContext = () => {
@@ -380,32 +510,29 @@ function Ielts({ showToast, openQuestionBank }) {
   };
   const exportReview = () => {
     if (!(progress.reviewWords || []).length) return showToast('错词本暂时为空');
-    const rows = progress.reviewWords.map(word => { const item = ieltsVocabulary.find(v => v.word === word); return item ? `${item.word}\t${item.ipa}\t${item.meaning}` : word; });
+    const rows = progress.reviewWords.map(word => { const item = getIeltsWord(word); return item ? `${item.word}\t${item.ipa}\t${item.meaning}\t${item.example}` : word; });
     const url = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `IELTS_错词本_${today}.txt`; link.click(); URL.revokeObjectURL(url);
   };
   const reviewList = progress.reviewWords || [];
   const reviewWord = reviewList.length ? reviewList[(progress.reviewCursor || 0) % reviewList.length] : '';
-  const contextDetail = contextParagraphSets.flatMap(group => group).flatMap(paragraph => paragraph.parts).find(part => Array.isArray(part) && part[0] === reviewWord);
-  const reviewDetail = ieltsVocabulary.find(item => item.word === reviewWord) || (contextDetail ? {
-    word: reviewWord,
-    ipa: contextDetail[1].split(' ')[0],
-    meaning: contextDetail[1].split(' ').slice(1).join(' '),
-    example: 'Saved from the contextual vocabulary passage.'
-  } : null);
+  const reviewDetail = getIeltsWord(reviewWord);
   return <>
-    <PageHead title="雅思 6.5 计划" subtitle={`${today} · 内容每日自动轮换，操作结果会保存在本机`} action={<button className="primary-btn" onClick={() => { recordMinutes(15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
+    <PageHead title="雅思 6.5 计划" subtitle={`${today} · 点击英文即可听发音 · ${cloud.session ? '已登录云同步' : '学习进度保存在本机'}`} action={<button className="primary-btn" onClick={() => { recordMinutes(15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
     <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳定执行</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value={`${weekDone} 项`} pct={Math.min(100, weekDone/14*100)}/><Metric label="连续打卡" value={`${streak} 天`} pct={Math.min(100, streak/7*100)}/></section>
     <section className="panel week-panel"><div className="panel-title"><div><CalendarDays size={19}/>一周循环计划</div><span>今天的计划已突出显示</span></div><div className="week-grid">{schedule.map(([day, work], index) => <button className={weekday === index ? 'today' : ''} onClick={() => showToast(`${day}：${work}`)} key={day}><strong>{day}</strong><span>{work}</span></button>)}</div></section>
     <div className="study-grid dynamic-study"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div><span>{todayDone.length} / 4 科完成</span></div><div className="study-tabs">{subjectKeys.map(key => <button className={active === key ? 'active' : ''} onClick={() => { setActive(key); setSession(null); }} key={key}>{ieltsSubjects[key].label}{todayDone.includes(key) && <Check size={14}/>}</button>)}</div><div className="lesson"><span className="lesson-kicker">{subject.label} · {subject.duration}分钟 · 今日第 {taskIndex + 1} 项</span><h2>{task[0]}</h2><p>{task[1]}</p><small>{subject.focus}</small><button className="primary-btn" onClick={beginTraining}>{todayDone.includes(active) ? '继续下一项' : '开始训练'}</button></div></section>
-      <section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>{vocabIndex + 1} / {ieltsVocabulary.length}</span></div><div className="vocab-card-nav"><button title="上一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex - 1 + ieltsVocabulary.length) % ieltsVocabulary.length })}><ArrowLeft size={17}/></button><button title="下一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length })}><ArrowRight size={17}/></button></div><strong>{vocab.word}</strong><span>{vocab.ipa}</span><p>{vocab.meaning}</p><blockquote>{vocab.example}</blockquote><div className="vocab-actions"><button onClick={() => advanceVocab(false)}><Check size={16}/>认识</button><button onClick={() => advanceVocab(true)}><X size={16}/>需复习</button></div></section></div>
+      <section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>{vocabIndex + 1} / {ieltsVocabulary.length}</span></div><div className="vocab-card-nav"><button title="上一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex - 1 + ieltsVocabulary.length) % ieltsVocabulary.length })}><ArrowLeft size={17}/></button><button title="下一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length })}><ArrowRight size={17}/></button></div><button className="speakable-word" onClick={() => speak(vocab.word, { rate: 0.72 })} title="播放单词发音"><strong>{vocab.word}</strong><Volume2 size={19}/></button><span>{vocab.ipa}</span><p>{vocab.meaning}</p><button className="speakable-example" onClick={() => speak(vocab.example)} title="播放例句"><Volume2 size={17}/><span>{vocab.example}</span></button><small className="core-example-translation">{vocab.translation}</small><div className="vocab-actions"><button onClick={() => advanceVocab(false)}><Check size={16}/>认识</button><button onClick={() => advanceVocab(true)}><X size={16}/>需复习</button></div></section></div>
     {session && <section className="panel training-session"><div className="panel-title"><div><Activity size={19}/>{session.title}</div><button onClick={() => setSession(null)}><X size={17}/></button></div><p>{ieltsSubjects[session.subject].focus}</p><div>{ieltsSubjects[session.subject].steps.map((step, index) => <label className={session.steps[index] ? 'done' : ''} key={step}><input type="checkbox" checked={session.steps[index]} onChange={() => setSession({ ...session, steps: session.steps.map((value, i) => i === index ? !value : value) })}/><span>{session.steps[index] && <Check size={14}/>}</span>{step}</label>)}</div><button className="primary-btn" disabled={!session.steps.every(Boolean)} onClick={finishTraining}>完成并进入下一项</button></section>}
-    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><div className="context-actions"><span>今日第 {contextIndex + 1} 组</span><button onClick={changeContext}>换一组<ArrowRight size={14}/></button></div></div>{activeContextParagraphs.map((paragraph, index) => <article key={`${contextIndex}-${index}`}><p>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <button className={selectedWord === part[0] ? 'selected' : ''} onClick={() => setSelectedWord(selectedWord === part[0] ? '' : part[0])} key={partIndex}>{part[0]}{selectedWord === part[0] && <span>{part[1]}<b onClick={event => { event.stopPropagation(); addReviewWord(part[0]); }}>加入生词本</b></span>}</button> : part)}</p><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>)}</section>
-      <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><strong>{reviewDetail.word}</strong><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p><blockquote>{reviewDetail.example}</blockquote><div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”或收藏短文中的高亮词。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
+    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><div className="context-actions"><span>今日第 {contextIndex + 1} 组</span><button onClick={changeContext}>换一组<ArrowRight size={14}/></button></div></div>{activeContextParagraphs.map((paragraph, index) => {
+      const sentence = paragraph.parts.map(part => Array.isArray(part) ? part[0] : part).join('');
+      return <article key={`${contextIndex}-${index}`}><p className="clickable-sentence" role="button" tabIndex="0" title="点击朗读本段" onClick={() => speak(sentence)} onKeyDown={event => (event.key === 'Enter' || event.key === ' ') && speak(sentence)}>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <span className="context-word-wrap" key={partIndex}><button className={selectedWord === part[0] ? 'selected' : ''} onClick={event => { event.stopPropagation(); openContextWord(part[0]); }}>{part[0]}<Volume2 size={12}/></button>{selectedWord === part[0] && <WordPopover item={getIeltsWord(part[0])} speak={speak} addReview={() => addReviewWord(part[0])}/>}</span> : part)}</p><div className="sentence-actions"><button className="translation-button" onClick={() => speak(sentence)}><Volume2 size={14}/>听本段</button><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button></div>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>;
+    })}</section>
+      <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><button className="review-word-button" onClick={() => speak(reviewDetail.word, { rate: 0.72 })}><strong>{reviewDetail.word}</strong><Volume2 size={18}/></button><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p><button className="speakable-example compact" onClick={() => speak(reviewDetail.example)}><Volume2 size={16}/><span>{reviewDetail.example}</span></button>{reviewDetail.translation && <small className="example-translation">{reviewDetail.translation}</small>}<div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”或收藏短文中的高亮词。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
   </>;
 }
 
-function IeltsBank({ showToast }) {
+function IeltsBank({ showToast, cloud }) {
   const [catalog, setCatalog] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [subject, setSubject] = useState('listening');
@@ -416,7 +543,7 @@ function IeltsBank({ showToast }) {
   const [sceneFilter, setSceneFilter] = useState('全部');
   const [practiceItem, setPracticeItem] = useState(null);
   const [elapsed, setElapsed] = useState(0);
-  const [progress, setProgress] = usePersistedState('lydia.ielts.catalogProgress', {});
+  const [progress, setProgress] = useCloudSyncedState('lydia.ielts.catalogProgress', {}, cloud, 'ielts_catalog_progress');
   const subjectOrder = ['listening', 'reading', 'writing', 'speaking'];
 
   useEffect(() => {
@@ -609,6 +736,66 @@ function BusinessEnglish({ showToast }) {
 }
 
 function WritingLab({ mode, showToast }) { const [text,setText]=useState(''); return <><PageHead title="写作与邮件批改" subtitle="先检查事实和目的，再优化欧洲客户常用商务表达" /><section className="panel writing-lab"><div className="lab-toolbar"><button className="active">商务邮件</button><button>雅思写作</button><button>产品规格</button></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="粘贴需要检查的英文内容，或输入LED车灯术语……"/><div className="editor-actions"><span>{text.length} 字符</span><button className="primary-btn" onClick={()=>showToast('本地检查完成；AI评分需连接服务器')}><Bot size={17}/>开始检查</button></div></section></> }
+
+function WordPopover({ item, speak, addReview }) {
+  if (!item) return null;
+  return <span className="word-popover" onClick={event => event.stopPropagation()}>
+    <span className="word-popover-head"><span><strong>{item.word}</strong><span>{item.ipa}</span></span><button onClick={() => speak(item.word, { rate: 0.72 })} title="播放单词发音"><Volume2 size={17}/></button></span>
+    <span className="popover-meaning">{item.meaning}</span>
+    <button className="popover-example" onClick={() => speak(item.example)}><Volume2 size={15}/><span>{item.example}</span></button>
+    {item.translation && <small>{item.translation}</small>}
+    <button className="popover-save" onClick={addReview}>加入生词本</button>
+  </span>;
+}
+
+function CloudSyncModal({ cloud, close, showToast }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const authenticate = async (event, action) => {
+    event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      event.currentTarget.reportValidity();
+      return;
+    }
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get('email') || '').trim();
+    const password = String(data.get('password') || '');
+    setBusy(true);
+    setError('');
+    try {
+      const session = action === 'signup'
+        ? await signUpWithPassword(email, password)
+        : await signInWithPassword(email, password);
+      if (session.access_token) {
+        cloud.setSession(session);
+        cloud.setStatus('syncing');
+        showToast('登录成功，正在同步雅思学习进度');
+        close();
+      } else {
+        showToast('注册成功，请先在邮箱中完成确认');
+      }
+    } catch (authError) {
+      setError(authError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logout = () => {
+    cloud.setSession(null);
+    cloud.setStatus('local');
+    showToast('已退出云同步，本机学习记录仍保留');
+    close();
+  };
+
+  return <div className="modal-scrim"><div className="modal sync-modal">
+    <div className="modal-head"><h2>学习进度同步</h2><button onClick={close}><X/></button></div>
+    {!cloudSyncConfigured ? <div className="sync-message"><Cloud size={30}/><strong>当前使用本机保存</strong><p>发音功能可以在电脑和手机上直接使用。配置Supabase后，可通过同一邮箱账号同步雅思进度、错词本和真题打卡。</p></div>
+      : cloud.session ? <div className="sync-account"><Cloud size={30}/><span>当前账号</span><strong>{cloud.session.user?.email}</strong><p>{cloud.status === 'error' ? '最近一次同步失败，请检查网络后重试。' : '该账号的雅思学习进度会在电脑和手机之间自动同步。'}</p><button className="secondary-btn" onClick={logout}><LogOut size={17}/>退出登录</button></div>
+      : <form className="sync-form" onSubmit={event => authenticate(event, 'signin')}><p>使用同一邮箱账号登录电脑和手机，雅思学习记录会自动同步。</p><label>邮箱<input name="email" type="email" autoComplete="email" required/></label><label>密码<input name="password" type="password" autoComplete="current-password" minLength="6" required/></label>{error && <div className="sync-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-btn" disabled={busy} onClick={event => authenticate({ preventDefault: () => {}, currentTarget: event.currentTarget.closest('form') }, 'signup')}>注册</button><button className="primary-btn" disabled={busy}><LogIn size={17}/>{busy ? '正在登录' : '登录并同步'}</button></div></form>}
+  </div></div>;
+}
 
 function Modal({ title, close, children }) { return <div className="modal-scrim"><div className="modal"><div className="modal-head"><h2>{title}</h2><button onClick={close}><X/></button></div>{children}</div></div> }
 function MobileNav({ page, setPage, openMore }) { return <nav className="mobile-nav">{[['today','今日',Home],['crm','客户',UsersRound],['ielts','学习',BookOpen],['social','社媒',BarChart3]].map(([id,label,Icon])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><Icon/><span>{label}</span></button>)}<button onClick={openMore}><MoreHorizontal/><span>更多</span></button></nav> }
