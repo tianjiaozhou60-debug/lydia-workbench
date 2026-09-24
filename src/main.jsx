@@ -4,7 +4,7 @@ import {
   Activity, ArrowLeft, ArrowRight, BarChart3, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarDays,
   Check, CheckSquare, ChevronDown, CircleUserRound, Cloud, Database, Download,
   ExternalLink, FileSpreadsheet, FileText, Filter, Globe2, GraduationCap, Home, Languages,
-  LogIn, LogOut, Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper, Play, RotateCcw,
+  LoaderCircle, LogIn, LogOut, Mail, Menu, MessageSquareText, Mic2, MoreHorizontal, Newspaper, Play, RotateCcw,
   PackageSearch, PanelLeftClose, PenLine, Plus, Search, Send, Settings, Share2,
   Sparkles, Target, Trash2, Upload, UsersRound, Volume2, X
 } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
 } from './cloud-sync.js';
 import { speakText } from './speech.js';
 import { mergeIeltsState } from './ielts-sync.js';
+import { contextLabels, lookupOnlineVocabulary } from './online-vocabulary.js';
 import './business-english.css';
 import './cloud-sync.css';
 
@@ -690,6 +691,8 @@ function BusinessEnglish({ showToast, cloud }) {
   const [captureText, setCaptureText] = useState('');
   const [wordSearch, setWordSearch] = useState('');
   const [draft, setDraft] = useState(null);
+  const [learningContext, setLearningContext] = useState('automotive');
+  const [lookupState, setLookupState] = useState({ status: 'idle', message: '' });
   const [studyState, setStudyState] = useCloudSyncedState(
     'lydia.businessVocabulary.v2', emptyBusinessVocabularyState, cloud, 'saved_vocabulary'
   );
@@ -734,7 +737,12 @@ function BusinessEnglish({ showToast, cloud }) {
     ...previous,
     ...patch
   }));
-  const captureVocabulary = event => {
+  const storeCustomWord = item => {
+    const nextWords = [...customWords.filter(entry => entry.word.toLowerCase() !== item.word.toLowerCase()), item];
+    patchStudyState({ customWords: nextWords, savedWords: [...new Set([...savedWords, item.word])] });
+    setSelectedWord(item.word);
+  };
+  const captureVocabulary = async event => {
     event.preventDefault();
     const text = captureText.trim();
     if (!text) return;
@@ -743,10 +751,24 @@ function BusinessEnglish({ showToast, cloud }) {
       patchStudyState({ savedWords: [...new Set([...savedWords, ...matches.map(item => item.word)])] });
       setSelectedWord(matches[0].word);
       setCaptureText('');
+      setDraft(null);
+      setLookupState({ status: 'success', message: `已从HANMA专业词库识别 ${matches.length} 个词汇并加入学习队列。` });
       showToast(`已识别并记录 ${matches.length} 个专业词汇`);
       return;
     }
-    setDraft({ word: text, ipa: '', type: 'word / phrase', meaning: '', phrase: '', example: '', translation: '', related: '' });
+    setDraft(null);
+    setLookupState({ status: 'loading', message: '正在联网查询音标、释义、例句和近义词…' });
+    try {
+      const item = await lookupOnlineVocabulary(text, learningContext);
+      storeCustomWord(item);
+      setDraft(item);
+      setCaptureText('');
+      setLookupState({ status: 'success', message: `已通过在线词典生成完整词卡，并加入${item.category}生词本。` });
+      showToast('联网查询完成，完整词卡已保存');
+    } catch (error) {
+      setLookupState({ status: 'error', message: `${error.message || '联网查询失败'}，你可以重试或手动补充。` });
+      setDraft({ word: text, ipa: '', type: 'word / phrase', meaning: '', phrase: '', example: '', translation: '', related: '', category: contextLabels[learningContext] });
+    }
   };
   const saveCustomWord = event => {
     event.preventDefault();
@@ -762,15 +784,15 @@ function BusinessEnglish({ showToast, cloud }) {
       example: String(data.get('example') || '').trim() || `Please add an example sentence for “${word}”.`,
       translation: String(data.get('translation') || '').trim() || '待补充例句翻译',
       related: String(data.get('related') || '').split(/[,，;；]/).map(value => value.trim()).filter(Boolean),
-      category: '我的生词',
+      category: draft?.category || contextLabels[learningContext] || '我的生词',
+      source: draft?.source || '手动记录',
       updatedAt: new Date().toISOString()
     };
-    const nextWords = [...customWords.filter(entry => entry.word.toLowerCase() !== word.toLowerCase()), item];
-    patchStudyState({ customWords: nextWords, savedWords: [...new Set([...savedWords, word])] });
-    setSelectedWord(word);
+    storeCustomWord(item);
     setCaptureText('');
     setDraft(null);
-    showToast('生词已记录并加入学习队列');
+    setLookupState({ status: 'success', message: '词卡修改已保存。' });
+    showToast('生词卡已更新');
   };
   const removeCustomWord = item => {
     patchStudyState({
@@ -805,9 +827,11 @@ function BusinessEnglish({ showToast, cloud }) {
       <Metric label="已掌握" value={`${masteredCount} 个`} pct={masteredCount / allVocabulary.length * 100}/>
     </section>
     <section className="panel business-capture">
-      <div className="capture-copy"><Languages size={20}/><div><strong>记录不懂的单词或短语</strong><span>输入一个词，或粘贴整句英文；专业词库会自动识别并加入学习队列。</span></div></div>
-      <form className="capture-form" onSubmit={captureVocabulary}><input ref={captureRef} value={captureText} onChange={event => setCaptureText(event.target.value)} placeholder="例如：sprayer boom，或粘贴一整句产品描述"/><button className="primary-btn"><Plus size={17}/>识别并记录</button></form>
-      {draft && <form className="custom-word-form" onSubmit={saveCustomWord}><div className="custom-word-head"><div><strong>词库中暂未找到，请补充一次</strong><span>保存后会自动记录，今后可直接复习和发音。</span></div><button type="button" onClick={() => setDraft(null)} aria-label="关闭"><X size={18}/></button></div><div className="custom-word-grid"><label>单词或短语<input name="word" defaultValue={draft.word} required/></label><label>音标<input name="ipa" placeholder="/…/"/></label><label>词性<input name="type" defaultValue={draft.type}/></label><label>中文意思<input name="meaning" placeholder="请输入准确中文意思"/></label><label className="wide">常用搭配<input name="phrase" placeholder="英文搭配 + 中文意思"/></label><label className="wide">英文例句<textarea name="example" placeholder="写一个汽车LED或客户沟通场景例句"/></label><label className="wide">例句翻译<input name="translation" placeholder="例句中文翻译"/></label><label className="wide">相近或相关词<input name="related" placeholder="用逗号分隔，例如：durable, robust"/></label></div><div className="custom-word-actions"><button type="button" className="secondary-btn" onClick={() => setDraft(null)}>取消</button><button className="primary-btn"><Check size={17}/>保存到生词本</button></div></form>}
+      <div className="capture-copy"><Languages size={20}/><div><strong>输入英文，自动生成完整学习词卡</strong><span>联网查询中文释义、IPA音标、词性、自然例句、例句翻译和近义词，保存后电脑和手机都能复习。</span></div></div>
+      <div className="learning-context" aria-label="学习场景">{Object.entries(contextLabels).map(([key, label]) => <button type="button" className={learningContext === key ? 'active' : ''} onClick={() => setLearningContext(key)} key={key}>{label}</button>)}</div>
+      <form className="capture-form" onSubmit={captureVocabulary}><input ref={captureRef} value={captureText} onChange={event => setCaptureText(event.target.value)} placeholder="输入单词、短语或英文句子，例如：reunion" disabled={lookupState.status === 'loading'}/><button className="primary-btn" disabled={lookupState.status === 'loading'}>{lookupState.status === 'loading' ? <LoaderCircle className="spin" size={17}/> : <Search size={17}/>}联网查询并记录</button></form>
+      {lookupState.message && <div className={`lookup-status ${lookupState.status}`}><span>{lookupState.message}</span>{lookupState.status === 'success' && draft?.word && <button type="button" onClick={() => speak(draft.word, 'en-GB', 0.72)}><Volume2 size={15}/>立即听发音</button>}</div>}
+      {draft && <form className="custom-word-form" onSubmit={saveCustomWord}><div className="custom-word-head"><div><strong>{draft.source === '在线词典' ? '联网查询结果已自动保存' : '联网结果不完整，可手动补充'}</strong><span>检查后可以修改；点击下方词卡中的扬声器即可反复跟读。</span></div><button type="button" onClick={() => setDraft(null)} aria-label="关闭"><X size={18}/></button></div><div className="custom-word-grid"><label>单词或短语<input name="word" defaultValue={draft.word} required/></label><label>音标<input name="ipa" defaultValue={draft.ipa} placeholder="/…/"/></label><label>词性<input name="type" defaultValue={draft.type}/></label><label>中文意思<input name="meaning" defaultValue={draft.meaning} placeholder="请输入准确中文意思"/></label><label className="wide">常用搭配 / 英文释义<input name="phrase" defaultValue={draft.phrase} placeholder="英文搭配 + 中文意思"/></label><label className="wide">英文例句<textarea name="example" defaultValue={draft.example} placeholder="自然英文例句"/></label><label className="wide">例句翻译<input name="translation" defaultValue={draft.translation} placeholder="例句中文翻译"/></label><label className="wide">相近或相关词<input name="related" defaultValue={Array.isArray(draft.related) ? draft.related.join(', ') : draft.related} placeholder="用逗号分隔，例如：durable, robust"/></label></div><div className="custom-word-actions"><button type="button" className="secondary-btn" onClick={() => setDraft(null)}>收起</button><button className="primary-btn"><Check size={17}/>保存修改</button></div></form>}
     </section>
     <section className="panel business-plan"><div className="panel-title"><div><CalendarDays size={19}/>7天高效学习计划</div><span>今天：{businessStudyPlan[todayIndex][1]}</span></div><div>{businessStudyPlan.map(([day, task], index) => <article className={index === todayIndex ? 'active' : ''} key={day}><strong>{day}</strong><span>{task}</span></article>)}</div></section>
     <div className="business-learning-grid">

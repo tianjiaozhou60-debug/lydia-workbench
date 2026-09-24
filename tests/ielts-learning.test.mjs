@@ -4,6 +4,7 @@ import { contextParagraphSets, getIeltsWord, ieltsVocabulary } from '../src/ielt
 import { mergeIeltsState } from '../src/ielts-sync.js';
 import { speakText } from '../src/speech.js';
 import { agriculturalLightingVocabulary, findAgriculturalVocabularyMatches } from '../src/business-english.js';
+import { fallbackExample, lookupOnlineVocabulary } from '../src/online-vocabulary.js';
 
 test('every built-in IELTS study word has pronunciation and bilingual example', () => {
   const words = [
@@ -99,4 +100,42 @@ test('business vocabulary sync merges custom words, saved items and newest progr
   assert.equal(merged.customWords[0].meaning, '喷雾机');
   assert.deepEqual(new Set(merged.savedWords), new Set(['sprayer boom', 'spray mist']));
   assert.equal(merged.progress['sprayer boom'].level, 2);
+});
+
+test('online vocabulary lookup builds a complete bilingual study card', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const value = String(url);
+    if (value.includes('api.datamuse.com') && value.includes('rel_syn')) {
+      return { ok: true, json: async () => [{ word: 'gathering' }, { word: 'meeting' }] };
+    }
+    if (value.includes('api.datamuse.com')) {
+      return { ok: true, json: async () => [{ word: 'reunion', tags: ['query', 'n', 'ipa_pron:riˈunjʌn'], defs: ['n\tA meeting of people after time apart.'] }] };
+    }
+    if (value.includes('api.tatoeba.org')) {
+      return { ok: true, json: async () => ({ data: [{ text: 'Our family reunion takes place every summer.' }] }) };
+    }
+    const query = new URL(value).searchParams.get('q');
+    const translations = {
+      reunion: '重聚',
+      'A meeting of people after time apart.': '人们分别一段时间后的聚会。',
+      'Our family reunion takes place every summer.': '我们的家庭聚会每年夏天举行。',
+      gathering: '聚会',
+      meeting: '会面'
+    };
+    return { ok: true, json: async () => ({ responseData: { translatedText: translations[query] || query } }) };
+  };
+  try {
+    const item = await lookupOnlineVocabulary('reunion', 'ielts');
+    assert.equal(item.ipa, '/riˈunjʌn/');
+    assert.equal(item.type, 'noun');
+    assert.match(item.meaning, /重聚/);
+    assert.equal(item.example, 'Our family reunion takes place every summer.');
+    assert.equal(item.translation, '我们的家庭聚会每年夏天举行。');
+    assert.deepEqual(item.related, ['gathering 聚会', 'meeting 会面']);
+    assert.equal(item.category, '雅思英语');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.match(fallbackExample('durable', 'adjective', 'automotive'), /durable requirement/);
 });

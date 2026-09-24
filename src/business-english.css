@@ -18,9 +18,20 @@
 .capture-copy strong{font-size:14px}
 .capture-copy span{margin-top:5px;color:#666;font-size:11px;line-height:1.55}
 .capture-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}
+.learning-context{display:flex;gap:6px;margin:0 0 10px}
+.learning-context button{height:32px;padding:0 13px;border:1px solid var(--line);border-radius:5px;background:#fff;color:#555;font-size:11px}
+.learning-context button.active{border-color:var(--red);background:var(--red-soft);color:var(--red);font-weight:700}
 .capture-form input,.custom-word-grid input,.custom-word-grid textarea,.word-library-head input{width:100%;border:1px solid var(--line);border-radius:5px;background:#fff;color:#222;font:inherit;outline:none}
 .capture-form input{height:42px;padding:0 13px;font-size:13px}
 .capture-form input:focus,.custom-word-grid input:focus,.custom-word-grid textarea:focus,.word-library-head input:focus{border-color:var(--red);box-shadow:0 0 0 2px rgba(201,20,29,.08)}
+.capture-form button:disabled,.capture-form input:disabled{opacity:.65;cursor:wait}
+.spin{animation:lookup-spin .8s linear infinite}
+@keyframes lookup-spin{to{transform:rotate(360deg)}}
+.lookup-status{margin-top:10px;min-height:36px;padding:9px 11px;border-radius:5px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;line-height:1.5}
+.lookup-status.loading{background:#f4f6f8;color:#555}
+.lookup-status.success{background:#edf8f1;color:#17663b}
+.lookup-status.error{background:#fff1f1;color:#9e2027}
+.lookup-status button{border:0;background:transparent;color:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;font-weight:700}
 .custom-word-form{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .custom-word-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:13px}
 .custom-word-head strong,.custom-word-head span{display:block}
@@ -104,7 +115,10 @@
   .business-plan article{min-width:138px;scroll-snap-align:start}
   .business-capture{padding:15px 14px}
   .capture-form{grid-template-columns:1fr}
+  .learning-context{display:grid;grid-template-columns:repeat(3,1fr)}
+  .learning-context button{height:auto;min-height:38px;padding:6px 4px;line-height:1.25}
   .capture-form button{width:100%;justify-content:center}
+  .lookup-status{align-items:flex-start;flex-direction:column}
   .custom-word-grid{grid-template-columns:1fr 1fr}
   .custom-word-grid label.wide{grid-column:1/-1}
   .custom-word-actions button{flex:1;justify-content:center}

@@ -25,7 +25,7 @@ Cross-device sync and live intelligence require a selected cloud project and pro
 
 The built-in IELTS core vocabulary, highlighted reading words, examples, and reading paragraphs use the device's English text-to-speech voice. Word cards show IPA, Chinese meaning, an English example, and its translation. On mobile, tap the word or sentence to hear it. The external IELTS exam pages are embedded from another site; this app cannot add dictionary controls inside that site's iframe.
 
-The foreign-trade vocabulary module includes an agricultural LED lighting glossary, manual word capture, IPA, Chinese meanings, collocations, bilingual examples, related words, spaced review, and device text-to-speech. Known glossary terms are filled automatically; an unknown term opens an editable form so unverified definitions are never invented.
+The foreign-trade vocabulary module includes an agricultural LED lighting glossary, online word capture, IPA, Chinese meanings, bilingual examples, related words, spaced review, and device text-to-speech. Unknown words, phrases, and sentences are enriched through public dictionary, sentence-corpus, and translation services, then saved as editable study cards. Learners can classify each lookup as IELTS English, international trade English, or automotive LED terminology.
 
 To enable cross-device IELTS progress sync:
 
