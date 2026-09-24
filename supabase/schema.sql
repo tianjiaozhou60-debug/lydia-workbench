@@ -4,7 +4,7 @@ create table if not exists public.user_progress (
   completed_tasks jsonb not null default '[]'::jsonb,
   leads jsonb not null default '[]'::jsonb,
   notes jsonb not null default '[]'::jsonb,
-  saved_vocabulary jsonb not null default '[]'::jsonb,
+  saved_vocabulary jsonb not null default '{}'::jsonb,
   ielts_learning jsonb not null default '{}'::jsonb,
   ielts_catalog_progress jsonb not null default '{}'::jsonb,
   ielts_context_offset integer not null default 0,
@@ -16,7 +16,11 @@ create table if not exists public.user_progress (
 alter table public.user_progress
   add column if not exists ielts_learning jsonb not null default '{}'::jsonb,
   add column if not exists ielts_catalog_progress jsonb not null default '{}'::jsonb,
-  add column if not exists ielts_context_offset integer not null default 0;
+  add column if not exists ielts_context_offset integer not null default 0,
+  add column if not exists saved_vocabulary jsonb not null default '{}'::jsonb;
+
+alter table public.user_progress
+  alter column saved_vocabulary set default '{}'::jsonb;
 
 alter table public.user_progress enable row level security;
 

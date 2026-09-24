@@ -11,6 +11,28 @@
 .business-plan article strong,.business-plan article span{display:block}
 .business-plan article strong{font-size:12px;color:var(--red)}
 .business-plan article span{font-size:11px;line-height:1.55;color:#555;margin-top:8px}
+.business-capture{padding:18px;margin-bottom:16px}
+.capture-copy{display:flex;align-items:flex-start;gap:11px;margin-bottom:14px}
+.capture-copy svg{color:var(--red);flex:none;margin-top:1px}
+.capture-copy strong,.capture-copy span{display:block}
+.capture-copy strong{font-size:14px}
+.capture-copy span{margin-top:5px;color:#666;font-size:11px;line-height:1.55}
+.capture-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}
+.capture-form input,.custom-word-grid input,.custom-word-grid textarea,.word-library-head input{width:100%;border:1px solid var(--line);border-radius:5px;background:#fff;color:#222;font:inherit;outline:none}
+.capture-form input{height:42px;padding:0 13px;font-size:13px}
+.capture-form input:focus,.custom-word-grid input:focus,.custom-word-grid textarea:focus,.word-library-head input:focus{border-color:var(--red);box-shadow:0 0 0 2px rgba(201,20,29,.08)}
+.custom-word-form{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.custom-word-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:13px}
+.custom-word-head strong,.custom-word-head span{display:block}
+.custom-word-head strong{font-size:13px}
+.custom-word-head span{font-size:11px;color:#666;margin-top:4px}
+.custom-word-head>button{border:0;background:transparent;color:#777;padding:2px}
+.custom-word-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.custom-word-grid label{display:grid;gap:6px;font-size:10px;color:#666}
+.custom-word-grid label.wide{grid-column:span 2}
+.custom-word-grid input{height:38px;padding:0 10px;font-size:12px}
+.custom-word-grid textarea{min-height:72px;padding:9px 10px;resize:vertical;font-size:12px}
+.custom-word-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .business-learning-grid{display:grid;grid-template-columns:minmax(430px,1.15fr) minmax(370px,.85fr);gap:16px}
 .daily-words{overflow:hidden}
 .word-buttons{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--line)}
@@ -23,6 +45,11 @@
 .word-buttons em{font-size:10px;font-style:normal;color:var(--green)}
 .all-words{padding:18px}
 .all-words>strong{display:block;font-size:12px;margin-bottom:12px}
+.word-library-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.word-library-head>strong{font-size:12px;white-space:nowrap}
+.word-library-head label{position:relative;width:min(210px,55%)}
+.word-library-head svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#888}
+.word-library-head input{height:32px;padding:0 9px 0 31px;font-size:11px}
 .all-words>div{display:flex;flex-wrap:wrap;gap:7px}
 .all-words button{border:1px solid var(--line);border-radius:5px;background:#fff;padding:7px 9px;font-size:11px}
 .all-words button.active{border-color:var(--red);color:var(--red);background:var(--red-soft)}
@@ -36,12 +63,20 @@
 .meaning span,.phrase span{display:block;color:#777;font-size:11px;margin-bottom:7px}
 .meaning strong,.phrase strong{font-size:15px;line-height:1.5}
 .meaning button{float:right;border:0;background:transparent;color:var(--red);display:flex;align-items:center;gap:4px;font-size:11px}
+.phrase-audio{width:100%;border:0;background:transparent;padding:0;color:inherit;display:flex;align-items:flex-start;gap:8px;text-align:left}
+.phrase-audio svg{color:var(--green);flex:none;margin-top:3px}
 .word-detail blockquote{position:relative;margin:20px 0 0;padding:15px 15px 15px 45px;border-left:3px solid var(--green);background:var(--soft)}
 .word-detail blockquote>button{position:absolute;left:12px;top:14px;border:0;background:transparent;color:var(--green)}
 .word-detail blockquote p{font-size:13px;line-height:1.6;margin:0}
 .word-detail blockquote span{display:block;color:#666;font-size:12px;line-height:1.6;margin-top:8px}
+.related-words{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+.related-words>span{display:block;color:#777;font-size:11px;margin-bottom:9px}
+.related-words>div{display:flex;flex-wrap:wrap;gap:7px}
+.related-words button{border:1px solid var(--line);border-radius:5px;background:#fff;padding:7px 9px;display:flex;align-items:center;gap:5px;font-size:11px;text-align:left}
+.related-words button svg{color:var(--green);flex:none}
 .memory-actions{display:flex;gap:8px;margin-top:20px}
 .memory-actions button{flex:1;justify-content:center}
+.remove-custom-word{width:100%;margin-top:10px;border:0;background:transparent;color:#8b2d32;font-size:11px;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px}
 .business-method{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:6px;margin-top:16px;background:#fff;overflow:hidden}
 .business-method>div{min-height:74px;padding:14px 18px;border-right:1px solid var(--line);display:grid;grid-template-columns:30px 1fr;align-items:center;gap:8px}
 .business-method>div strong{width:28px;height:28px;border-radius:50%;background:#f1f1f1;display:grid;place-items:center;font-size:12px}
@@ -58,6 +93,8 @@
 }
 
 @media(max-width:720px){
+  .sidebar{z-index:70}
+  .page-head .primary-btn{white-space:nowrap}
   .business-summary{grid-template-columns:1fr 1fr}
   .business-goal{grid-column:1/-1}
   .business-summary .metric:nth-child(2){border-left:0}
@@ -65,6 +102,12 @@
   .business-plan .panel-title>span{text-align:right;max-width:52%;line-height:1.45}
   .business-plan>div:last-child{display:flex;overflow-x:auto;scroll-snap-type:x mandatory}
   .business-plan article{min-width:138px;scroll-snap-align:start}
+  .business-capture{padding:15px 14px}
+  .capture-form{grid-template-columns:1fr}
+  .capture-form button{width:100%;justify-content:center}
+  .custom-word-grid{grid-template-columns:1fr 1fr}
+  .custom-word-grid label.wide{grid-column:1/-1}
+  .custom-word-actions button{flex:1;justify-content:center}
   .word-buttons{grid-template-columns:1fr}
   .word-buttons button{min-height:64px;border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:24px 1fr 58px;align-items:center;gap:7px;padding:10px 14px}
   .word-buttons button:last-child{border-bottom:0}
@@ -72,6 +115,8 @@
   .word-buttons span{font-size:16px;margin:0}
   .word-buttons em{text-align:right}
   .all-words{padding:14px}
+  .word-library-head{align-items:flex-start;flex-direction:column}
+  .word-library-head label{width:100%}
   .all-words button{min-height:38px;font-size:12px}
   .word-detail{min-height:0;padding:18px 16px}
   .word-detail-head h2{font-size:25px}

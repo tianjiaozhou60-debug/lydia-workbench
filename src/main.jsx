@@ -12,7 +12,10 @@ import './styles.css';
 import './ielts-bank.css';
 import './ielts-learning.css';
 import { contextParagraphSets, getIeltsWord, ieltsSubjects, ieltsVocabulary } from './ielts-content.js';
-import { businessEmailVocabulary, businessStudyPlan } from './business-english.js';
+import {
+  agriculturalLightingVocabulary, businessEmailVocabulary, businessStudyPlan,
+  findAgriculturalVocabularyMatches
+} from './business-english.js';
 import {
   cloudSyncConfigured, loadProgressField, readCloudSession, saveCloudSession,
   saveProgressField, signInWithPassword, signUpWithPassword
@@ -146,6 +149,8 @@ const writeStorage = (key, value) => {
     // Embedded browsers may block local storage. The app should remain usable in memory.
   }
 };
+
+const englishOnly = value => String(value || '').split(/[\u3400-\u9fff]/)[0].trim();
 
 function usePersistedState(key, fallback) {
   const [value, setValue] = useState(() => readStorage(key, fallback));
@@ -330,7 +335,7 @@ function App() {
         {['social', 'linkedin', 'calendar'].includes(page) && <Social showToast={showToast} />}
         {page === 'intel' && <Intel showToast={showToast} />}
         {page === 'excel' && <ExcelCenter leads={leads} exportCsv={exportCsv} showToast={showToast} />}
-        {page === 'terms' && <BusinessEnglish showToast={showToast} />}
+        {page === 'terms' && <BusinessEnglish showToast={showToast} cloud={cloud} />}
         {page === 'writing' && <WritingLab mode={page} showToast={showToast} />}
       </div>
     </main>
@@ -675,61 +680,139 @@ function Intel({ showToast }) {
 
 function ExcelCenter({ leads, exportCsv, showToast }) { return <><PageHead title="Excel 数据中心" subtitle="统一导入、清洗、去重并导出客户与工作记录" action={<button className="primary-btn" onClick={exportCsv}><Download size={17}/>导出当前CRM</button>} /><div className="excel-grid"><section className="panel upload-zone"><Upload size={28}/><h2>导入客户表格</h2><p>支持下一阶段接入 .xlsx、.csv；当前演示版提供CSV导出。</p><button className="secondary-btn" onClick={() => showToast('Excel导入将在云端版启用')}>选择文件</button></section><section className="panel"><div className="panel-title"><div><Database size={19}/>当前数据</div></div><div className="data-health"><strong>{leads.length}</strong><span>客户记录</span><strong>{leads.filter(x=>x.contact !== '待确认').length}</strong><span>有联系人</span><strong>{leads.filter(x=>x.priority === 'A').length}</strong><span>A级机会</span></div></section></div><section className="panel rules-list"><div className="panel-title"><div><FileSpreadsheet size={19}/>标准化规则</div></div>{['保留客户历史记录原文，不自动改写','官网、LinkedIn及公开邮箱分别保留证据链接','未核实联系人和推测信息标记为待确认','同一客户的多个历史编码合并维护'].map((x,i)=><div key={x}><span>{i+1}</span><p>{x}</p><Check size={17}/></div>)}</section></> }
 
-function BusinessEnglish({ showToast }) {
+const emptyBusinessVocabularyState = { customWords: [], progress: {}, savedWords: [] };
+
+function BusinessEnglish({ showToast, cloud }) {
   const today = localDateKey();
   const dayNumber = Math.floor(new Date(`${today}T00:00:00`).getTime() / 86400000);
-  const [selectedWord, setSelectedWord] = useState(businessEmailVocabulary[0].word);
-  const [progress, setProgress] = usePersistedState('lydia.businessEnglish.v1', {});
+  const captureRef = useRef(null);
+  const [selectedWord, setSelectedWord] = useState(agriculturalLightingVocabulary[0].word);
+  const [captureText, setCaptureText] = useState('');
+  const [wordSearch, setWordSearch] = useState('');
+  const [draft, setDraft] = useState(null);
+  const [studyState, setStudyState] = useCloudSyncedState(
+    'lydia.businessVocabulary.v2', emptyBusinessVocabularyState, cloud, 'saved_vocabulary'
+  );
+  const customWords = Array.isArray(studyState.customWords) ? studyState.customWords : [];
+  const progress = studyState.progress || {};
+  const savedWords = Array.isArray(studyState.savedWords) ? studyState.savedWords : [];
+  const allVocabulary = useMemo(() => {
+    const entries = new Map();
+    for (const item of [...agriculturalLightingVocabulary, ...businessEmailVocabulary, ...customWords]) {
+      entries.set(item.word.trim().toLowerCase(), item);
+    }
+    return [...entries.values()];
+  }, [customWords]);
   const intervals = [1, 3, 7, 14, 30];
   const todayIndex = dayNumber % businessStudyPlan.length;
-  const dueWords = businessEmailVocabulary.filter(item => progress[item.word]?.due && progress[item.word].due <= today && progress[item.word]?.level > 0);
-  const newWords = businessEmailVocabulary.filter(item => !progress[item.word]);
-  const todayWords = [...dueWords, ...newWords].slice(0, 5);
-  const activeWords = todayWords.length ? todayWords : businessEmailVocabulary.slice((dayNumber * 5) % businessEmailVocabulary.length, ((dayNumber * 5) % businessEmailVocabulary.length) + 5);
-  const selected = businessEmailVocabulary.find(item => item.word === selectedWord) || activeWords[0] || businessEmailVocabulary[0];
+  const savedSet = new Set(savedWords.map(word => word.toLowerCase()));
+  const pinnedWords = allVocabulary.filter(item => savedSet.has(item.word.toLowerCase()));
+  const dueWords = allVocabulary.filter(item => progress[item.word]?.due && progress[item.word].due <= today && progress[item.word]?.level > 0);
+  const newWords = allVocabulary.filter(item => !progress[item.word]);
+  const prioritized = [...pinnedWords, ...dueWords, ...newWords].filter((item, index, list) =>
+    list.findIndex(candidate => candidate.word.toLowerCase() === item.word.toLowerCase()) === index
+  );
+  const todayWords = prioritized.slice(0, 5);
+  const start = (dayNumber * 5) % allVocabulary.length;
+  const activeWords = todayWords.length ? todayWords : allVocabulary.slice(start, start + 5);
+  const selected = allVocabulary.find(item => item.word.toLowerCase() === selectedWord.toLowerCase()) || activeWords[0] || allVocabulary[0];
   const learnedCount = Object.values(progress).filter(item => item.level > 0).length;
   const masteredCount = Object.values(progress).filter(item => item.level >= 3).length;
+  const visibleVocabulary = wordSearch.trim()
+    ? allVocabulary.filter(item => `${item.word} ${item.meaning} ${item.phrase}`.toLowerCase().includes(wordSearch.trim().toLowerCase()))
+    : allVocabulary;
 
   const speak = (text, lang, rate = 0.82) => {
-    if (!('speechSynthesis' in window)) return showToast('当前浏览器不支持语音播放');
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = rate;
-    window.speechSynthesis.speak(utterance);
+    speakText(text, { lang, rate, onError: showToast });
   };
   const openWord = item => {
     setSelectedWord(item.word);
     speak(item.word, 'en-GB', 0.75);
+  };
+  const patchStudyState = patch => setStudyState(previous => ({
+    ...emptyBusinessVocabularyState,
+    ...previous,
+    ...patch
+  }));
+  const captureVocabulary = event => {
+    event.preventDefault();
+    const text = captureText.trim();
+    if (!text) return;
+    const matches = findAgriculturalVocabularyMatches(text);
+    if (matches.length) {
+      patchStudyState({ savedWords: [...new Set([...savedWords, ...matches.map(item => item.word)])] });
+      setSelectedWord(matches[0].word);
+      setCaptureText('');
+      showToast(`已识别并记录 ${matches.length} 个专业词汇`);
+      return;
+    }
+    setDraft({ word: text, ipa: '', type: 'word / phrase', meaning: '', phrase: '', example: '', translation: '', related: '' });
+  };
+  const saveCustomWord = event => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const word = String(data.get('word') || '').trim();
+    if (!word) return;
+    const item = {
+      word,
+      ipa: String(data.get('ipa') || '').trim() || '/待补充/',
+      type: String(data.get('type') || '').trim() || 'word / phrase',
+      meaning: String(data.get('meaning') || '').trim() || '待补充中文意思',
+      phrase: String(data.get('phrase') || '').trim() || '待补充常用搭配',
+      example: String(data.get('example') || '').trim() || `Please add an example sentence for “${word}”.`,
+      translation: String(data.get('translation') || '').trim() || '待补充例句翻译',
+      related: String(data.get('related') || '').split(/[,，;；]/).map(value => value.trim()).filter(Boolean),
+      category: '我的生词',
+      updatedAt: new Date().toISOString()
+    };
+    const nextWords = [...customWords.filter(entry => entry.word.toLowerCase() !== word.toLowerCase()), item];
+    patchStudyState({ customWords: nextWords, savedWords: [...new Set([...savedWords, word])] });
+    setSelectedWord(word);
+    setCaptureText('');
+    setDraft(null);
+    showToast('生词已记录并加入学习队列');
+  };
+  const removeCustomWord = item => {
+    patchStudyState({
+      customWords: customWords.filter(entry => entry.word.toLowerCase() !== item.word.toLowerCase()),
+      savedWords: savedWords.filter(word => word.toLowerCase() !== item.word.toLowerCase())
+    });
+    setSelectedWord(agriculturalLightingVocabulary[0].word);
+    showToast('已从我的生词中移除');
   };
   const gradeWord = remembered => {
     const current = progress[selected.word] || { level: 0 };
     const level = remembered ? Math.min(current.level + 1, intervals.length) : 0;
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + (remembered ? intervals[Math.max(0, level - 1)] : 0));
-    setProgress({ ...progress, [selected.word]: { level, due: localDateKey(dueDate), updatedAt: new Date().toISOString() } });
+    patchStudyState({ progress: { ...progress, [selected.word]: { level, due: localDateKey(dueDate), updatedAt: new Date().toISOString() } } });
     showToast(remembered ? `记忆成功，${intervals[Math.max(0, level - 1)]}天后复习` : '已加入今日重点复习');
     const currentIndex = activeWords.findIndex(item => item.word === selected.word);
-    setSelectedWord(activeWords[(currentIndex + 1) % activeWords.length]?.word || businessEmailVocabulary[0].word);
+    setSelectedWord(activeWords[(currentIndex + 1) % activeWords.length]?.word || agriculturalLightingVocabulary[0].word);
   };
   const resetProgress = () => {
-    setProgress({});
-    setSelectedWord(businessEmailVocabulary[0].word);
+    patchStudyState({ progress: {} });
+    setSelectedWord(agriculturalLightingVocabulary[0].word);
     showToast('学习进度已重新开始');
   };
 
   return <>
-    <PageHead title="外贸英语词汇" subtitle="汽车LED外贸邮件场景 · 每天5个词 · 自动安排间隔复习" />
+    <PageHead title="外贸英语词汇" subtitle={`汽车LED产品与客户沟通 · 点击即可发音 · ${cloud.session ? '电脑和手机已启用账号同步' : '当前记录保存在本机'}`} action={<button className="primary-btn" onClick={() => captureRef.current?.focus()}><Plus size={17}/>录入生词</button>} />
     <section className="business-summary">
-      <div className="business-goal"><span>本周主题</span><strong>样品与技术跟进</strong><small>HML-R0390客户邮件</small></div>
-      <Metric label="词汇总数" value={`${businessEmailVocabulary.length} 个`} pct={100}/>
-      <Metric label="已学习" value={`${learnedCount} 个`} pct={learnedCount / businessEmailVocabulary.length * 100}/>
-      <Metric label="已掌握" value={`${masteredCount} 个`} pct={masteredCount / businessEmailVocabulary.length * 100}/>
+      <div className="business-goal"><span>本周主题</span><strong>农机喷药蓝光灯</strong><small>产品卖点与技术表达</small></div>
+      <Metric label="词汇总数" value={`${allVocabulary.length} 个`} pct={100}/>
+      <Metric label="已学习" value={`${learnedCount} 个`} pct={learnedCount / allVocabulary.length * 100}/>
+      <Metric label="已掌握" value={`${masteredCount} 个`} pct={masteredCount / allVocabulary.length * 100}/>
+    </section>
+    <section className="panel business-capture">
+      <div className="capture-copy"><Languages size={20}/><div><strong>记录不懂的单词或短语</strong><span>输入一个词，或粘贴整句英文；专业词库会自动识别并加入学习队列。</span></div></div>
+      <form className="capture-form" onSubmit={captureVocabulary}><input ref={captureRef} value={captureText} onChange={event => setCaptureText(event.target.value)} placeholder="例如：sprayer boom，或粘贴一整句产品描述"/><button className="primary-btn"><Plus size={17}/>识别并记录</button></form>
+      {draft && <form className="custom-word-form" onSubmit={saveCustomWord}><div className="custom-word-head"><div><strong>词库中暂未找到，请补充一次</strong><span>保存后会自动记录，今后可直接复习和发音。</span></div><button type="button" onClick={() => setDraft(null)} aria-label="关闭"><X size={18}/></button></div><div className="custom-word-grid"><label>单词或短语<input name="word" defaultValue={draft.word} required/></label><label>音标<input name="ipa" placeholder="/…/"/></label><label>词性<input name="type" defaultValue={draft.type}/></label><label>中文意思<input name="meaning" placeholder="请输入准确中文意思"/></label><label className="wide">常用搭配<input name="phrase" placeholder="英文搭配 + 中文意思"/></label><label className="wide">英文例句<textarea name="example" placeholder="写一个汽车LED或客户沟通场景例句"/></label><label className="wide">例句翻译<input name="translation" placeholder="例句中文翻译"/></label><label className="wide">相近或相关词<input name="related" placeholder="用逗号分隔，例如：durable, robust"/></label></div><div className="custom-word-actions"><button type="button" className="secondary-btn" onClick={() => setDraft(null)}>取消</button><button className="primary-btn"><Check size={17}/>保存到生词本</button></div></form>}
     </section>
     <section className="panel business-plan"><div className="panel-title"><div><CalendarDays size={19}/>7天高效学习计划</div><span>今天：{businessStudyPlan[todayIndex][1]}</span></div><div>{businessStudyPlan.map(([day, task], index) => <article className={index === todayIndex ? 'active' : ''} key={day}><strong>{day}</strong><span>{task}</span></article>)}</div></section>
     <div className="business-learning-grid">
-      <section className="panel daily-words"><div className="panel-title"><div><BookOpen size={19}/>今日5词</div><span>点击单词自动发音</span></div><div className="word-buttons">{activeWords.map((item, index) => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}><small>{index + 1}</small><span>{item.word}</span><em>{progress[item.word]?.level ? `记忆 ${progress[item.word].level}/5` : '新词'}</em></button>)}</div><div className="all-words"><strong>本周全部词汇</strong><div>{businessEmailVocabulary.map(item => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}>{item.word}</button>)}</div></div></section>
-      <section className="panel word-detail"><div className="word-detail-head"><div><small>{selected.type}</small><h2>{selected.word}</h2><span>{selected.ipa}</span></div><button onClick={() => speak(selected.word, 'en-GB', 0.72)} title="播放英文发音"><Play size={19}/></button></div><div className="meaning"><span>中文意思</span><strong>{selected.meaning}</strong><button onClick={() => speak(selected.meaning, 'zh-CN', 0.82)}><Play size={16}/>听中文</button></div><div className="phrase"><span>常用搭配</span><strong>{selected.phrase}</strong></div><blockquote><button onClick={() => speak(selected.example, 'en-GB', 0.82)} title="朗读例句"><Play size={16}/></button><p>{selected.example}</p><span>{selected.translation}</span></blockquote><div className="memory-actions"><button className="secondary-btn" onClick={() => gradeWord(false)}><X size={17}/>还没记住</button><button className="primary-btn" onClick={() => gradeWord(true)}><Check size={17}/>记住了</button></div></section>
+      <section className="panel daily-words"><div className="panel-title"><div><BookOpen size={19}/>今日5词</div><span>点击单词自动发音</span></div><div className="word-buttons">{activeWords.map((item, index) => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}><small>{index + 1}</small><span>{item.word}</span><em>{progress[item.word]?.level ? `记忆 ${progress[item.word].level}/5` : savedSet.has(item.word.toLowerCase()) ? '我的生词' : '新词'}</em></button>)}</div><div className="all-words"><div className="word-library-head"><strong>全部词汇</strong><label><Search size={15}/><input value={wordSearch} onChange={event => setWordSearch(event.target.value)} placeholder="搜索英文或中文"/></label></div><div>{visibleVocabulary.map(item => <button className={selected.word === item.word ? 'active' : ''} onClick={() => openWord(item)} key={item.word}>{item.word}</button>)}</div></div></section>
+      <section className="panel word-detail"><div className="word-detail-head"><div><small>{selected.category || selected.type}</small><h2>{selected.word}</h2><span>{selected.ipa}</span></div><button onClick={() => speak(selected.word, 'en-GB', 0.72)} title="播放英文发音"><Volume2 size={19}/></button></div><div className="meaning"><span>中文意思</span><strong>{selected.meaning}</strong><button onClick={() => speak(selected.meaning, 'zh-CN', 0.82)}><Volume2 size={16}/>听中文</button></div><div className="phrase"><span>常用搭配</span><button className="phrase-audio" onClick={() => speak(englishOnly(selected.phrase) || selected.word, 'en-GB', 0.78)}><Volume2 size={15}/><strong>{selected.phrase}</strong></button></div><blockquote><button onClick={() => speak(selected.example, 'en-GB', 0.82)} title="朗读例句"><Volume2 size={16}/></button><p>{selected.example}</p><span>{selected.translation}</span></blockquote>{selected.related?.length > 0 && <div className="related-words"><span>相近 / 相关词</span><div>{selected.related.map(item => <button key={item} onClick={() => speak(englishOnly(item) || item, 'en-GB', 0.76)}><Volume2 size={14}/>{item}</button>)}</div></div>}<div className="memory-actions"><button className="secondary-btn" onClick={() => gradeWord(false)}><X size={17}/>还没记住</button><button className="primary-btn" onClick={() => gradeWord(true)}><Check size={17}/>记住了</button></div>{selected.category === '我的生词' && <button className="remove-custom-word" onClick={() => removeCustomWord(selected)}><Trash2 size={15}/>移除这个生词</button>}</section>
     </div>
     <section className="business-method"><div><strong>听</strong><span>点击单词，听2遍</span></div><div><strong>看</strong><span>看音标和中文意思</span></div><div><strong>说</strong><span>跟读单词和例句3遍</span></div><div><strong>用</strong><span>用搭配说一句客户邮件</span></div><button onClick={resetProgress}><RotateCcw size={15}/>重新开始</button></section>
   </>;
@@ -770,7 +853,7 @@ function CloudSyncModal({ cloud, close, showToast }) {
       if (session.access_token) {
         cloud.setSession(session);
         cloud.setStatus('syncing');
-        showToast('登录成功，正在同步雅思学习进度');
+        showToast('登录成功，正在同步学习记录');
         close();
       } else {
         showToast('注册成功，请先在邮箱中完成确认');
@@ -791,9 +874,9 @@ function CloudSyncModal({ cloud, close, showToast }) {
 
   return <div className="modal-scrim"><div className="modal sync-modal">
     <div className="modal-head"><h2>学习进度同步</h2><button onClick={close}><X/></button></div>
-    {!cloudSyncConfigured ? <div className="sync-message"><Cloud size={30}/><strong>当前使用本机保存</strong><p>发音功能可以在电脑和手机上直接使用。配置Supabase后，可通过同一邮箱账号同步雅思进度、错词本和真题打卡。</p></div>
-      : cloud.session ? <div className="sync-account"><Cloud size={30}/><span>当前账号</span><strong>{cloud.session.user?.email}</strong><p>{cloud.status === 'error' ? '最近一次同步失败，请检查网络后重试。' : '该账号的雅思学习进度会在电脑和手机之间自动同步。'}</p><button className="secondary-btn" onClick={logout}><LogOut size={17}/>退出登录</button></div>
-      : <form className="sync-form" onSubmit={event => authenticate(event, 'signin')}><p>使用同一邮箱账号登录电脑和手机，雅思学习记录会自动同步。</p><label>邮箱<input name="email" type="email" autoComplete="email" required/></label><label>密码<input name="password" type="password" autoComplete="current-password" minLength="6" required/></label>{error && <div className="sync-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-btn" disabled={busy} onClick={event => authenticate({ preventDefault: () => {}, currentTarget: event.currentTarget.closest('form') }, 'signup')}>注册</button><button className="primary-btn" disabled={busy}><LogIn size={17}/>{busy ? '正在登录' : '登录并同步'}</button></div></form>}
+    {!cloudSyncConfigured ? <div className="sync-message"><Cloud size={30}/><strong>当前使用本机保存</strong><p>发音功能可以在电脑和手机上直接使用。配置Supabase后，可通过同一邮箱账号同步雅思进度、外贸生词、复习记录和真题打卡。</p></div>
+      : cloud.session ? <div className="sync-account"><Cloud size={30}/><span>当前账号</span><strong>{cloud.session.user?.email}</strong><p>{cloud.status === 'error' ? '最近一次同步失败，请检查网络后重试。' : '该账号的雅思学习进度、外贸生词和复习记录会在电脑和手机之间自动同步。'}</p><button className="secondary-btn" onClick={logout}><LogOut size={17}/>退出登录</button></div>
+      : <form className="sync-form" onSubmit={event => authenticate(event, 'signin')}><p>使用同一邮箱账号登录电脑和手机，雅思进度、外贸生词和复习记录会自动同步。</p><label>邮箱<input name="email" type="email" autoComplete="email" required/></label><label>密码<input name="password" type="password" autoComplete="current-password" minLength="6" required/></label>{error && <div className="sync-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-btn" disabled={busy} onClick={event => authenticate({ preventDefault: () => {}, currentTarget: event.currentTarget.closest('form') }, 'signup')}>注册</button><button className="primary-btn" disabled={busy}><LogIn size={17}/>{busy ? '正在登录' : '登录并同步'}</button></div></form>}
   </div></div>;
 }
 
