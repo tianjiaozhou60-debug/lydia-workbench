@@ -4,7 +4,7 @@ import { contextParagraphSets, getIeltsWord, ieltsVocabulary } from '../src/ielt
 import { mergeIeltsState } from '../src/ielts-sync.js';
 import { speakText } from '../src/speech.js';
 import { agriculturalLightingVocabulary, findAgriculturalVocabularyMatches } from '../src/business-english.js';
-import { fallbackExample, lookupOnlineVocabulary } from '../src/online-vocabulary.js';
+import { fallbackExample, getPartOfSpeechGuide, getUsageGuide, lookupOnlineVocabulary } from '../src/online-vocabulary.js';
 
 test('every built-in IELTS study word has pronunciation and bilingual example', () => {
   const words = [
@@ -132,10 +132,23 @@ test('online vocabulary lookup builds a complete bilingual study card', async ()
     assert.match(item.meaning, /重聚/);
     assert.equal(item.example, 'Our family reunion takes place every summer.');
     assert.equal(item.translation, '我们的家庭聚会每年夏天举行。');
-    assert.deepEqual(item.related, ['gathering 聚会', 'meeting 会面']);
+    assert.deepEqual(item.related.map(value => value.word), ['gathering', 'meeting']);
+    assert.match(item.related[0].useWhen, /聚会/);
+    assert.match(item.related[0].difference, /reunion/);
+    assert.equal(item.grammar.label, '名词');
+    assert.match(item.grammar.position, /动词/);
+    assert.match(item.usage, /雅思/);
     assert.equal(item.category, '雅思英语');
   } finally {
     globalThis.fetch = originalFetch;
   }
   assert.match(fallbackExample('durable', 'adjective', 'automotive'), /durable requirement/);
+});
+
+test('part-of-speech and usage guides explain grammar in plain Chinese', () => {
+  assert.equal(getPartOfSpeechGuide('noun').label, '名词');
+  assert.match(getPartOfSpeechGuide('verb').plain, /动作/);
+  assert.match(getPartOfSpeechGuide('adjective').position, /名词前面/);
+  assert.match(getUsageGuide('remittance', '汇款', 'trade'), /定金/);
+  assert.match(getUsageGuide('beam pattern', '光型', 'automotive'), /汽车LED/);
 });
