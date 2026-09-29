@@ -1,5 +1,5 @@
-const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+const supabaseUrl = String(import.meta.env?.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseAnonKey = String(import.meta.env?.VITE_SUPABASE_ANON_KEY || '');
 const sessionKey = 'lydia.cloud.session.v1';
 const refreshRequests = new Map();
 
@@ -14,7 +14,12 @@ const authHeaders = (accessToken) => ({
 const parseResponse = async (response) => {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.msg || payload.message || payload.error_description || payload.error || '请求失败');
+    const rawMessage = payload.msg || payload.message || payload.error_description || payload.error || '请求失败';
+    const authExpired = response.status === 401 || /jwt|refresh token|session.*expired|token.*expired/i.test(rawMessage);
+    const error = new Error(authExpired ? '登录状态已过期，请重新登录' : rawMessage);
+    error.status = response.status;
+    error.authExpired = authExpired;
+    throw error;
   }
   return payload;
 };
@@ -65,35 +70,53 @@ export async function refreshCloudSession(session) {
         headers: authHeaders(),
         body: JSON.stringify({ refresh_token: session.refresh_token })
       });
-      const refreshed = await parseResponse(response);
-      saveCloudSession(refreshed);
-      return refreshed;
+      try {
+        const refreshed = await parseResponse(response);
+        saveCloudSession(refreshed);
+        return refreshed;
+      } catch (error) {
+        saveCloudSession(null);
+        throw error;
+      }
     })().finally(() => refreshRequests.delete(session.refresh_token));
     refreshRequests.set(session.refresh_token, request);
   }
   return refreshRequests.get(session.refresh_token);
 }
 
-const validSession = async (session) => {
+export const ensureCloudSession = async (session) => {
   if (!session?.access_token) return null;
   const expiresAt = Number(session.expires_at || 0) * 1000;
   if (!expiresAt || expiresAt > Date.now() + 60000) return session;
   return refreshCloudSession(session);
 };
 
+const requestWithSession = async (session, createRequest) => {
+  let activeSession = await ensureCloudSession(session);
+  if (!activeSession?.user?.id) return { session: activeSession, response: null };
+  let response = await createRequest(activeSession);
+  if (response.status === 401 && activeSession.refresh_token) {
+    activeSession = await refreshCloudSession(activeSession);
+    response = await createRequest(activeSession);
+  }
+  return { session: activeSession, response };
+};
+
 export async function loadProgressField(session, field) {
-  const activeSession = await validSession(session);
-  if (!activeSession?.user?.id) return { session: activeSession, value: undefined };
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(activeSession.user.id)}&select=${encodeURIComponent(field)}`,
-    { headers: authHeaders(activeSession.access_token) }
-  );
+  const { session: activeSession, response } = await requestWithSession(session, current => fetch(
+    `${supabaseUrl}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(current.user.id)}&select=${encodeURIComponent(field)}`,
+    { headers: authHeaders(current.access_token) }
+  ));
+  if (!response) return { session: activeSession, value: undefined };
   const rows = await parseResponse(response);
   return { session: activeSession, value: rows[0]?.[field] };
 }
 
 export async function saveProgressField(session, field, value) {
-  const activeSession = await validSession(session);
+  const { session: activeSession } = await requestWithSession(session, current => fetch(
+    `${supabaseUrl}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(current.user.id)}&select=user_id`,
+    { headers: authHeaders(current.access_token) }
+  ));
   if (!activeSession?.user?.id) return activeSession;
   const userId = activeSession.user.id;
   const createResponse = await fetch(`${supabaseUrl}/rest/v1/user_progress?on_conflict=user_id`, {

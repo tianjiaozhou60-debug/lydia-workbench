@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { contextParagraphSets, getIeltsWord, ieltsVocabulary } from '../src/ielts-content.js';
 import { mergeIeltsState } from '../src/ielts-sync.js';
-import { speakText } from '../src/speech.js';
+import { selectPreferredVoice, speakText } from '../src/speech.js';
+import { normalizeEnglishWord, tokenizeEnglish } from '../src/interactive-english.js';
 import { agriculturalLightingVocabulary, findAgriculturalVocabularyMatches } from '../src/business-english.js';
 import { fallbackExample, getPartOfSpeechGuide, getUsageGuide, lookupOnlineVocabulary } from '../src/online-vocabulary.js';
 
@@ -26,7 +27,7 @@ test('every built-in IELTS study word has pronunciation and bilingual example', 
 test('learning progress merges non-overlapping work on two devices', () => {
   const merged = mergeIeltsState('ielts_learning', {
     minutesByDay: { '2026-09-21': 25 }, checkins: { '2026-09-21': ['listening'] },
-    taskOffsets: { listening: 2 }, reviewWords: ['integrate'], knownWords: []
+    taskOffsets: { listening: 2 }, reviewWords: ['integrate'], reviewEntries: { integrate: { word: 'integrate', meaning: '整合' } }, knownWords: []
   }, {
     minutesByDay: { '2026-09-21': 40 }, checkins: { '2026-09-21': ['reading'] },
     taskOffsets: { reading: 1 }, reviewWords: ['enhance'], knownWords: ['substantial']
@@ -35,6 +36,7 @@ test('learning progress merges non-overlapping work on two devices', () => {
   assert.deepEqual(new Set(merged.checkins['2026-09-21']), new Set(['reading', 'listening']));
   assert.deepEqual(merged.taskOffsets, { reading: 1, listening: 2 });
   assert.deepEqual(new Set(merged.reviewWords), new Set(['enhance', 'integrate']));
+  assert.equal(merged.reviewEntries.integrate.meaning, '整合');
 });
 
 test('exam progress uses the newest item timestamp', () => {
@@ -51,8 +53,12 @@ test('exam progress uses the newest item timestamp', () => {
 
 test('word and sentence playback uses the device English voice', () => {
   const spoken = [];
+  const voices = [
+    { lang: 'en-GB', name: 'Microsoft English' },
+    { lang: 'en-GB', name: 'Google UK English Female' }
+  ];
   globalThis.window = { speechSynthesis: {
-    getVoices: () => [{ lang: 'en-GB', name: 'English' }],
+    getVoices: () => voices,
     cancel: () => {},
     speak: utterance => spoken.push(utterance)
   }, SpeechSynthesisUtterance: true };
@@ -65,8 +71,15 @@ test('word and sentence playback uses the device English voice', () => {
     'substantial', 'The project requires a substantial initial investment.'
   ]);
   assert.ok(spoken.every(item => item.lang === 'en-GB' && item.voice?.lang === 'en-GB'));
+  assert.equal(selectPreferredVoice(voices).name, 'Google UK English Female');
   delete globalThis.window;
   delete globalThis.SpeechSynthesisUtterance;
+});
+
+test('every English word in a paragraph can be tokenized for lookup', () => {
+  const tokens = tokenizeEnglish("Technology-driven learning shouldn't stop at highlighted words.");
+  const words = tokens.map(normalizeEnglishWord).filter(value => /^[A-Za-z]/.test(value));
+  assert.deepEqual(words, ['Technology-driven', 'learning', "shouldn't", 'stop', 'at', 'highlighted', 'words']);
 });
 
 test('agricultural lighting vocabulary is complete and searchable from pasted copy', () => {

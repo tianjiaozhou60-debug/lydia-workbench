@@ -63,6 +63,7 @@ export function mergeIeltsState(field, localValue, remoteValue) {
     vocabIndex: Math.max(Number(local.vocabIndex) || 0, Number(remote.vocabIndex) || 0),
     knownWords: unique(remote.knownWords || [], local.knownWords || []),
     reviewWords: unique(remote.reviewWords || [], local.reviewWords || []),
+    reviewEntries: { ...object(remote.reviewEntries), ...object(local.reviewEntries) },
     reviewCursor: Math.max(Number(local.reviewCursor) || 0, Number(remote.reviewCursor) || 0)
   };
 }

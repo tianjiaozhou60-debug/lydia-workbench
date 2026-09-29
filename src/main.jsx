@@ -17,10 +17,11 @@ import {
   findAgriculturalVocabularyMatches
 } from './business-english.js';
 import {
-  cloudSyncConfigured, loadProgressField, readCloudSession, saveCloudSession,
+  cloudSyncConfigured, ensureCloudSession, loadProgressField, readCloudSession, saveCloudSession,
   saveProgressField, signInWithPassword, signUpWithPassword
 } from './cloud-sync.js';
 import { speakText } from './speech.js';
+import { normalizeEnglishWord, tokenizeEnglish } from './interactive-english.js';
 import { mergeIeltsState } from './ielts-sync.js';
 import { contextLabels, getPartOfSpeechGuide, getUsageGuide, lookupOnlineVocabulary } from './online-vocabulary.js';
 import './business-english.css';
@@ -292,10 +293,38 @@ function App() {
     status: syncStatus,
     setStatus: setSyncStatus,
     setError: message => {
+      if (/登录状态已过期/.test(message)) {
+        saveCloudSession(null);
+        setCloudSession(null);
+        setSyncOpen(true);
+      }
       setSyncStatus('error');
       showToast(`云同步失败：${message}`);
     }
   }), [cloudSession, syncStatus]);
+
+  useEffect(() => {
+    if (!cloudSession || !cloudSyncConfigured) return undefined;
+    let cancelled = false;
+    ensureCloudSession(cloudSession)
+      .then(session => {
+        if (cancelled || !session) return;
+        if (session.access_token !== cloudSession.access_token) {
+          saveCloudSession(session);
+          setCloudSession(session);
+        }
+        setSyncStatus('synced');
+      })
+      .catch(error => {
+        if (cancelled) return;
+        saveCloudSession(null);
+        setCloudSession(null);
+        setSyncStatus('local');
+        setSyncOpen(true);
+        showToast(error.message);
+      });
+    return () => { cancelled = true; };
+  }, [cloudSession?.refresh_token]);
 
   const toggleTask = (id) => setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
   const doneCount = tasks.filter(t => t.done).length;
@@ -452,11 +481,12 @@ function Ielts({ showToast, openQuestionBank, cloud }) {
   const [active, setActive] = useState('listening');
   const [session, setSession] = useState(null);
   const [translations, setTranslations] = useState([]);
-  const [selectedWord, setSelectedWord] = useState('');
+  const [selectedWord, setSelectedWord] = useState({ key: '', status: 'idle', item: null, error: '' });
+  const [speechRate, setSpeechRate] = usePersistedState('lydia.ielts.speechRate', 0.86);
   const [contextOffset, setContextOffset] = useCloudSyncedState('lydia.ielts.contextOffset', 0, cloud, 'ielts_context_offset');
   const [progress, setProgress] = useCloudSyncedState('lydia.ielts.learning.v2', {
     minutesByDay: {}, checkins: {}, taskOffsets: {}, vocabIndex: 0,
-    knownWords: [], reviewWords: [], reviewCursor: 0
+    knownWords: [], reviewWords: [], reviewEntries: {}, reviewCursor: 0
   }, cloud, 'ielts_learning');
   const schedule = [['周一','听力精听 + 口语Part 1'],['周二','阅读定位 + Task 1'],['周三','听力Section 3/4 + 口语Part 2'],['周四','阅读判断题 + Task 2'],['周五','听力套题 + 口语模拟'],['周六','阅读套题 + 写作复盘'],['周日','模考 + 错题复盘']];
   const subject = ieltsSubjects[active];
@@ -470,10 +500,22 @@ function Ielts({ showToast, openQuestionBank, cloud }) {
   const todayDone = progress.checkins?.[today] || [];
   const weekDone = Object.entries(progress.checkins || {}).filter(([date]) => (new Date(today) - new Date(date)) / 86400000 < 7).reduce((sum, [, items]) => sum + items.length, 0);
   const streak = (() => { let count = 0; const cursor = new Date(`${today}T00:00:00`); while ((progress.checkins?.[localDateKey(cursor)] || []).length) { count++; cursor.setDate(cursor.getDate() - 1); } return count; })();
-  const speak = (text, options = {}) => speakText(text, { ...options, onError: showToast });
-  const openContextWord = word => {
-    setSelectedWord(selectedWord === word ? '' : word);
-    speak(word, { rate: 0.72 });
+  const speak = (text, options = {}) => speakText(text, { rate: speechRate, ...options, onError: showToast });
+  const openContextWord = async (word, key) => {
+    if (selectedWord.key === key) {
+      setSelectedWord({ key: '', status: 'idle', item: null, error: '' });
+      return;
+    }
+    const normalized = normalizeEnglishWord(word);
+    const builtIn = getIeltsWord(normalized);
+    setSelectedWord({ key, status: 'loading', item: builtIn || { word: normalized, ipa: '', meaning: '正在查询…', example: '', translation: '' }, error: '' });
+    speak(normalized, { rate: Math.min(speechRate, 0.8) });
+    try {
+      const online = await lookupOnlineVocabulary(normalized, 'ielts');
+      setSelectedWord(current => current.key === key ? { key, status: 'ready', item: { ...online, ...builtIn, related: online.related || [] }, error: '' } : current);
+    } catch (error) {
+      setSelectedWord(current => current.key === key ? { key, status: builtIn ? 'ready' : 'error', item: builtIn || current.item, error: builtIn ? '' : error.message } : current);
+    }
   };
 
   const patchProgress = patch => setProgress(previous => ({ ...previous, ...patch }));
@@ -504,25 +546,30 @@ function Ielts({ showToast, openQuestionBank, cloud }) {
     setSession(null);
     showToast(`${subject.label}已完成，下一项训练已更新`);
   };
-  const addReviewWord = word => {
-    setProgress(previous => ({ ...previous, reviewWords: [...new Set([...(previous.reviewWords || []), word])] }));
-    showToast(`${word} 已加入生词本`);
+  const addReviewWord = item => {
+    if (!item?.word) return;
+    setProgress(previous => ({
+      ...previous,
+      reviewWords: [...new Set([...(previous.reviewWords || []), item.word])],
+      reviewEntries: { ...(previous.reviewEntries || {}), [item.word]: item }
+    }));
+    showToast(`${item.word} 已加入生词本`);
   };
   const changeContext = () => {
     setContextOffset(Number(contextOffset || 0) + 1);
     setTranslations([]);
-    setSelectedWord('');
+    setSelectedWord({ key: '', status: 'idle', item: null, error: '' });
     showToast('已换成新的情境短文');
   };
   const exportReview = () => {
     if (!(progress.reviewWords || []).length) return showToast('错词本暂时为空');
-    const rows = progress.reviewWords.map(word => { const item = getIeltsWord(word); return item ? `${item.word}\t${item.ipa}\t${item.meaning}\t${item.example}` : word; });
+    const rows = progress.reviewWords.map(word => { const item = getIeltsWord(word) || progress.reviewEntries?.[word]; return item ? `${item.word}\t${item.ipa}\t${item.meaning}\t${item.example}` : word; });
     const url = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `IELTS_错词本_${today}.txt`; link.click(); URL.revokeObjectURL(url);
   };
   const reviewList = progress.reviewWords || [];
   const reviewWord = reviewList.length ? reviewList[(progress.reviewCursor || 0) % reviewList.length] : '';
-  const reviewDetail = getIeltsWord(reviewWord);
+  const reviewDetail = getIeltsWord(reviewWord) || progress.reviewEntries?.[reviewWord];
   return <>
     <PageHead title="雅思 6.5 计划" subtitle={`${today} · 点击英文即可听发音 · ${cloud.session ? '已登录云同步' : '学习进度保存在本机'}`} action={<button className="primary-btn" onClick={() => { recordMinutes(15); showToast('已记录15分钟学习'); }}><Plus size={17}/>记录15分钟</button>} />
     <section className="score-strip"><div className="score-main"><span>目标分数</span><strong>6.5</strong><small>稳定执行</small></div><Metric label="今日学习" value={`${minutes} 分钟`} pct={Math.min(100, minutes/90*100)}/><Metric label="本周完成" value={`${weekDone} 项`} pct={Math.min(100, weekDone/14*100)}/><Metric label="连续打卡" value={`${streak} 天`} pct={Math.min(100, streak/7*100)}/></section>
@@ -530,11 +577,11 @@ function Ielts({ showToast, openQuestionBank, cloud }) {
     <div className="study-grid dynamic-study"><section className="panel"><div className="panel-title"><div><Target size={19}/>今日训练</div><span>{todayDone.length} / 4 科完成</span></div><div className="study-tabs">{subjectKeys.map(key => <button className={active === key ? 'active' : ''} onClick={() => { setActive(key); setSession(null); }} key={key}>{ieltsSubjects[key].label}{todayDone.includes(key) && <Check size={14}/>}</button>)}</div><div className="lesson"><span className="lesson-kicker">{subject.label} · {subject.duration}分钟 · 今日第 {taskIndex + 1} 项</span><h2>{task[0]}</h2><p>{task[1]}</p><small>{subject.focus}</small><button className="primary-btn" onClick={beginTraining}>{todayDone.includes(active) ? '继续下一项' : '开始训练'}</button></div></section>
       <section className="panel vocab"><div className="panel-title"><div><BookOpen size={19}/>今日核心词汇</div><span>{vocabIndex + 1} / {ieltsVocabulary.length}</span></div><div className="vocab-card-nav"><button title="上一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex - 1 + ieltsVocabulary.length) % ieltsVocabulary.length })}><ArrowLeft size={17}/></button><button title="下一个" onClick={() => patchProgress({ vocabIndex: (vocabIndex + 1) % ieltsVocabulary.length })}><ArrowRight size={17}/></button></div><button className="speakable-word" onClick={() => speak(vocab.word, { rate: 0.72 })} title="播放单词发音"><strong>{vocab.word}</strong><Volume2 size={19}/></button><span>{vocab.ipa}</span><p>{vocab.meaning}</p><button className="speakable-example" onClick={() => speak(vocab.example)} title="播放例句"><Volume2 size={17}/><span>{vocab.example}</span></button><small className="core-example-translation">{vocab.translation}</small><div className="vocab-actions"><button onClick={() => advanceVocab(false)}><Check size={16}/>认识</button><button onClick={() => advanceVocab(true)}><X size={16}/>需复习</button></div></section></div>
     {session && <section className="panel training-session"><div className="panel-title"><div><Activity size={19}/>{session.title}</div><button onClick={() => setSession(null)}><X size={17}/></button></div><p>{ieltsSubjects[session.subject].focus}</p><div>{ieltsSubjects[session.subject].steps.map((step, index) => <label className={session.steps[index] ? 'done' : ''} key={step}><input type="checkbox" checked={session.steps[index]} onChange={() => setSession({ ...session, steps: session.steps.map((value, i) => i === index ? !value : value) })}/><span>{session.steps[index] && <Check size={14}/>}</span>{step}</label>)}</div><button className="primary-btn" disabled={!session.steps.every(Boolean)} onClick={finishTraining}>完成并进入下一项</button></section>}
-    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><div className="context-actions"><span>今日第 {contextIndex + 1} 组</span><button onClick={changeContext}>换一组<ArrowRight size={14}/></button></div></div>{activeContextParagraphs.map((paragraph, index) => {
+    <div className="ielts-tools-grid"><section className="panel context-reader"><div className="panel-title"><div><FileText size={19}/>情境词汇短文</div><div className="context-actions"><div className="speech-speed" aria-label="发音语速">{[[0.72, '慢速'], [0.86, '标准'], [1, '原速']].map(([rate, label]) => <button className={speechRate === rate ? 'active' : ''} onClick={() => setSpeechRate(rate)} key={rate}>{label}</button>)}</div><span>今日第 {contextIndex + 1} 组</span><button onClick={changeContext}>换一组<ArrowRight size={14}/></button></div></div>{activeContextParagraphs.map((paragraph, index) => {
       const sentence = paragraph.parts.map(part => Array.isArray(part) ? part[0] : part).join('');
-      return <article key={`${contextIndex}-${index}`}><p className="clickable-sentence" role="button" tabIndex="0" title="点击朗读本段" onClick={() => speak(sentence)} onKeyDown={event => (event.key === 'Enter' || event.key === ' ') && speak(sentence)}>{paragraph.parts.map((part, partIndex) => Array.isArray(part) ? <span className="context-word-wrap" key={partIndex}><button className={selectedWord === part[0] ? 'selected' : ''} onClick={event => { event.stopPropagation(); openContextWord(part[0]); }}>{part[0]}<Volume2 size={12}/></button>{selectedWord === part[0] && <WordPopover item={getIeltsWord(part[0])} speak={speak} addReview={() => addReviewWord(part[0])}/>}</span> : part)}</p><div className="sentence-actions"><button className="translation-button" onClick={() => speak(sentence)}><Volume2 size={14}/>听本段</button><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button></div>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>;
+      return <article key={`${contextIndex}-${index}`}><p className="clickable-sentence" title="点击任意单词查询；使用下方按钮朗读整段"><InteractiveEnglishText text={sentence} paragraphKey={`${contextIndex}-${index}`} selectedWord={selectedWord} openWord={openContextWord} speak={speak} addReview={addReviewWord}/></p><div className="sentence-actions"><button className="translation-button" onClick={() => speak(sentence)}><Volume2 size={14}/>听本段</button><button className="translation-button" onClick={() => setTranslations(translations.includes(index) ? translations.filter(i => i !== index) : [...translations, index])}>{translations.includes(index) ? '隐藏本段译文' : '查看本段译文'}</button></div>{translations.includes(index) && <div className="translation-text-live">{paragraph.translation}</div>}</article>;
     })}</section>
-      <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><button className="review-word-button" onClick={() => speak(reviewDetail.word, { rate: 0.72 })}><strong>{reviewDetail.word}</strong><Volume2 size={18}/></button><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p><button className="speakable-example compact" onClick={() => speak(reviewDetail.example)}><Volume2 size={16}/><span>{reviewDetail.example}</span></button>{reviewDetail.translation && <small className="example-translation">{reviewDetail.translation}</small>}<div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”或收藏短文中的高亮词。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
+      <section className="panel error-book"><div className="panel-title"><div><BookOpen size={19}/>错词 / 错题本</div><span>{reviewList.length} 项</span></div>{reviewDetail ? <div className="review-card"><small>当前复习 {((progress.reviewCursor || 0) % reviewList.length) + 1} / {reviewList.length}</small><button className="review-word-button" onClick={() => speak(reviewDetail.word, { rate: Math.min(speechRate, 0.8) })}><strong>{reviewDetail.word}</strong><Volume2 size={18}/></button><span>{reviewDetail.ipa}</span><p>{reviewDetail.meaning}</p>{reviewDetail.example && <button className="speakable-example compact" onClick={() => speak(reviewDetail.example)}><Volume2 size={16}/><span>{reviewDetail.example}</span></button>}{reviewDetail.translation && <small className="example-translation">{reviewDetail.translation}</small>}<div><button className="secondary-btn" onClick={() => patchProgress({ reviewWords: reviewList.filter(word => word !== reviewWord), reviewCursor: 0 })}><Check size={16}/>已掌握</button><button className="primary-btn" onClick={() => patchProgress({ reviewCursor: ((progress.reviewCursor || 0) + 1) % reviewList.length })}>下一个<ArrowRight size={16}/></button></div></div> : <div className="empty-review"><CheckSquare size={28}/><strong>错词本为空</strong><span>点击“需复习”，或点击短文中的任意单词加入生词本。</span></div>}<button className="export-review" onClick={exportReview}><Download size={16}/>导出错词本</button></section></div>
   </>;
 }
 
@@ -548,6 +595,7 @@ function IeltsBank({ showToast, cloud }) {
   const [partFilter, setPartFilter] = useState('全部');
   const [sceneFilter, setSceneFilter] = useState('全部');
   const [practiceItem, setPracticeItem] = useState(null);
+  const [embedSource, setEmbedSource] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useCloudSyncedState('lydia.ielts.catalogProgress', {}, cloud, 'ielts_catalog_progress');
   const subjectOrder = ['listening', 'reading', 'writing', 'speaking'];
@@ -568,6 +616,7 @@ function IeltsBank({ showToast, cloud }) {
   const startPractice = item => {
     setItemStatus(item.id, 'active');
     setElapsed(0);
+    setEmbedSource(false);
     setPracticeItem(item);
   };
 
@@ -607,15 +656,15 @@ function IeltsBank({ showToast, cloud }) {
         <button className="primary-btn" onClick={() => { setItemStatus(practiceItem.id, 'completed'); setPracticeItem(null); }}>完成练习</button>
       </header>
       <div className="exam-source-bar">
-        <div><Globe2 size={17}/><span>工作台内直接加载即刻说雅思原题页；题干、音频、选项、答案和解析仍由原站提供。</span></div>
-        <a href={practiceItem.originalUrl} target="_blank" rel="noreferrer">新窗口打开<ExternalLink size={15}/></a>
+        <div><Globe2 size={17}/><span>原题页使用独立账号。请在新窗口登录原站；工作台只负责保存计时与完成进度。</span></div>
+        <a href={practiceItem.originalUrl} target="_blank" rel="noreferrer">登录原站并练习<ExternalLink size={15}/></a>
       </div>
-      <iframe className="exam-frame" src={practiceItem.originalUrl} title={`${practiceItem.title} 雅思练习`} allow="autoplay; clipboard-write; microphone" />
+      {embedSource ? <iframe className="exam-frame" src={practiceItem.originalUrl} title={`${practiceItem.title} 雅思练习`} allow="autoplay; clipboard-write; microphone" /> : <div className="external-practice-card"><Globe2 size={34}/><strong>先登录雅思原题网站</strong><p>原站的登录状态不能由工作台代替。电脑和手机都请先在新窗口登录，再返回这里保存练习进度。</p><a className="primary-btn" href={practiceItem.originalUrl} target="_blank" rel="noreferrer">登录原站并开始练习<ExternalLink size={17}/></a><button className="secondary-btn" onClick={() => setEmbedSource(true)}>在工作台内预览</button><small>如果预览页再次显示“登录状态已过期”，请使用上方新窗口，不需要反复修改密码。</small></div>}
     </section>;
   }
 
   return <>
-    <PageHead title="雅思真题练习" subtitle={`即刻说雅思原题页内嵌练习 · 题库目录更新 ${updatedDate}`} action={<a className="secondary-btn" href={catalog.sourceUrl} target="_blank" rel="noreferrer"><Globe2 size={17}/>打开原站</a>} />
+    <PageHead title="雅思真题练习" subtitle={`原题在独立窗口练习，工作台同步保存打卡进度 · 题库目录更新 ${updatedDate}`} action={<a className="secondary-btn" href={catalog.sourceUrl} target="_blank" rel="noreferrer"><Globe2 size={17}/>登录原站</a>} />
     <section className="bank-summary">
       <div className="bank-goal"><span>题库总量</span><strong>{allRecords.length}</strong><small>仅同步公开目录，不复制题目正文</small></div>
       {subjectOrder.map(key => <button className={subject === key ? 'active' : ''} onClick={() => setSubject(key)} key={key}><span>{catalog.subjects[key].label}</span><strong>{catalog.subjects[key].total}</strong><small>已完成 {catalog.subjects[key].records.filter(item => getStatus(item.id) === 'completed').length}</small></button>)}
@@ -855,13 +904,28 @@ function BusinessEnglish({ showToast, cloud }) {
 
 function WritingLab({ mode, showToast }) { const [text,setText]=useState(''); return <><PageHead title="写作与邮件批改" subtitle="先检查事实和目的，再优化欧洲客户常用商务表达" /><section className="panel writing-lab"><div className="lab-toolbar"><button className="active">商务邮件</button><button>雅思写作</button><button>产品规格</button></div><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="粘贴需要检查的英文内容，或输入LED车灯术语……"/><div className="editor-actions"><span>{text.length} 字符</span><button className="primary-btn" onClick={()=>showToast('本地检查完成；AI评分需连接服务器')}><Bot size={17}/>开始检查</button></div></section></> }
 
-function WordPopover({ item, speak, addReview }) {
+function InteractiveEnglishText({ text, paragraphKey, selectedWord, openWord, speak, addReview }) {
+  return tokenizeEnglish(text).map((token, index) => {
+    const word = normalizeEnglishWord(token);
+    if (!word || !/^[A-Za-z]/.test(word)) return <React.Fragment key={`${paragraphKey}-${index}`}>{token}</React.Fragment>;
+    const key = `${paragraphKey}-${index}`;
+    return <span className="context-word-wrap" key={key}>
+      <button className={`interactive-word ${selectedWord.key === key ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); openWord(word, key); }}>{token}</button>
+      {selectedWord.key === key && <WordPopover item={selectedWord.item} status={selectedWord.status} error={selectedWord.error} speak={speak} addReview={() => addReview(selectedWord.item)}/>}
+    </span>;
+  });
+}
+
+function WordPopover({ item, status, error, speak, addReview }) {
   if (!item) return null;
   return <span className="word-popover" onClick={event => event.stopPropagation()}>
-    <span className="word-popover-head"><span><strong>{item.word}</strong><span>{item.ipa}</span></span><button onClick={() => speak(item.word, { rate: 0.72 })} title="播放单词发音"><Volume2 size={17}/></button></span>
+    <span className="word-popover-head"><span><strong>{item.word}</strong><span>{item.ipa || '音标查询中…'}</span></span><button onClick={() => speak(item.word, { rate: 0.72 })} title="播放单词发音"><Volume2 size={17}/></button></span>
     <span className="popover-meaning">{item.meaning}</span>
-    <button className="popover-example" onClick={() => speak(item.example)}><Volume2 size={15}/><span>{item.example}</span></button>
+    {item.example && <button className="popover-example" onClick={() => speak(item.example)}><Volume2 size={15}/><span>{item.example}</span></button>}
     {item.translation && <small>{item.translation}</small>}
+    {item.related?.length > 0 && <span className="popover-related"><b>同近义词</b>{item.related.slice(0, 4).map(value => <button key={value.word || value} onClick={() => speak(value.word || value, { rate: 0.76 })}>{value.word || value}</button>)}</span>}
+    {status === 'loading' && <small className="popover-status">正在补全释义、例句和同近义词…</small>}
+    {error && <small className="popover-error">{error}</small>}
     <button className="popover-save" onClick={addReview}>加入生词本</button>
   </span>;
 }

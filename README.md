@@ -31,7 +31,7 @@ To enable cross-device IELTS progress sync:
 
 1. Create a Supabase project, enable email/password sign-in, and run `supabase/schema.sql` in its SQL Editor.
 2. For local testing, put the project URL and **public anon key** in `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Never use the service-role key in the browser.
-3. For GitHub Pages, the deployment workflow must first be updated to pass `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` into the build. That workflow update requires GitHub `workflow` permission and is not part of this release. Then add those values as a repository variable and secret and redeploy.
+3. For GitHub Pages, add `VITE_SUPABASE_URL` as a repository variable and `VITE_SUPABASE_ANON_KEY` as a repository secret. The deployment workflow passes both values into the production build; redeploy after saving them.
 4. Open the deployed HTTPS site on both devices, use the cloud button to sign in with the same account, and verify a completed item or saved foreign-trade word appears on the other device. If email confirmation is enabled, confirm the signup email first.
 
 Until those values are configured and the site is deployed, learning records remain in each browser's local storage and **do not sync between devices**. CRM and other workbench modules remain browser-local even after IELTS sync is enabled.
