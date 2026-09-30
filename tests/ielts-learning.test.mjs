@@ -4,6 +4,7 @@ import { contextParagraphSets, getIeltsWord, ieltsVocabulary } from '../src/ielt
 import { mergeIeltsState } from '../src/ielts-sync.js';
 import { selectPreferredVoice, speakText } from '../src/speech.js';
 import { normalizeEnglishWord, tokenizeEnglish } from '../src/interactive-english.js';
+import { buildIeltsSourceUrl } from '../src/ielts-source-links.js';
 import { agriculturalLightingVocabulary, findAgriculturalVocabularyMatches } from '../src/business-english.js';
 import { fallbackExample, getPartOfSpeechGuide, getUsageGuide, lookupOnlineVocabulary } from '../src/online-vocabulary.js';
 
@@ -80,6 +81,16 @@ test('every English word in a paragraph can be tokenized for lookup', () => {
   const tokens = tokenizeEnglish("Technology-driven learning shouldn't stop at highlighted words.");
   const words = tokens.map(normalizeEnglishWord).filter(value => /^[A-Za-z]/.test(value));
   assert.deepEqual(words, ['Technology-driven', 'learning', "shouldn't", 'stop', 'at', 'highlighted', 'words']);
+});
+
+test('speaking records use the dedicated speaking route', () => {
+  const url = new URL(buildIeltsSourceUrl({
+    subject: 'speaking', sourceCode: 'xiexiu', paperId: '723', oralMaterialsId: '723', partCode: 'part1'
+  }));
+  assert.equal(url.pathname, '/exam-real-questions/speaking');
+  assert.equal(url.searchParams.get('oralMaterialsId'), '723');
+  assert.equal(url.searchParams.get('partCode'), 'part1');
+  assert.equal(url.searchParams.has('paperId'), false);
 });
 
 test('agricultural lighting vocabulary is complete and searchable from pasted copy', () => {

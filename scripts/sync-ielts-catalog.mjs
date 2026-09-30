@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { buildIeltsSourceUrl } from '../src/ielts-source-links.js';
 
 const endpoint = 'https://www.jikeshuoyasi.com/api/blade-app/exam-real/v1/list';
 const subjects = ['listening', 'reading', 'writing', 'speaking'];
@@ -28,8 +29,8 @@ for (const subject of subjects) {
       scene: item.scene || '', hitTime: item.hitTime || '',
       difficulty: Number(item.newDifficulty ?? -1), practitioners: Number(item.practitionersNumber ?? -1),
       accuracy: Number(item.perAccuracy ?? -1), sourceCode: item.sourceCode || 'xiexiu',
-      paperId: String(item.paperId || ''),
-      originalUrl: `https://www.jikeshuoyasi.com/exam-real-questions?subject=${encodeURIComponent(item.subject)}&sourceCode=${encodeURIComponent(item.sourceCode || 'xiexiu')}&paperId=${encodeURIComponent(item.paperId || '')}`
+      paperId: String(item.paperId || ''), oralMaterialsId: String(item.oralMaterialsId || ''),
+      partCode: item.partCode || '', originalUrl: buildIeltsSourceUrl(item)
     })));
     if (!data.records?.length) break;
     page += 1;

@@ -22,6 +22,7 @@ import {
 } from './cloud-sync.js';
 import { speakText } from './speech.js';
 import { normalizeEnglishWord, tokenizeEnglish } from './interactive-english.js';
+import { buildIeltsSourceUrl, officialSpeakingPracticeUrl } from './ielts-source-links.js';
 import { mergeIeltsState } from './ielts-sync.js';
 import { contextLabels, getPartOfSpeechGuide, getUsageGuide, lookupOnlineVocabulary } from './online-vocabulary.js';
 import './business-english.css';
@@ -647,6 +648,8 @@ function IeltsBank({ showToast, cloud }) {
   if (practiceItem) {
     const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
     const seconds = String(elapsed % 60).padStart(2, '0');
+    const sourceUrl = buildIeltsSourceUrl(practiceItem);
+    const isSpeaking = practiceItem.subject === 'speaking';
     return <section className="exam-workspace">
       <header className="exam-header">
         <button className="secondary-btn" onClick={() => setPracticeItem(null)}><ArrowLeft size={17}/>返回题库</button>
@@ -656,10 +659,10 @@ function IeltsBank({ showToast, cloud }) {
         <button className="primary-btn" onClick={() => { setItemStatus(practiceItem.id, 'completed'); setPracticeItem(null); }}>完成练习</button>
       </header>
       <div className="exam-source-bar">
-        <div><Globe2 size={17}/><span>原题页使用独立账号。请在新窗口登录原站；工作台只负责保存计时与完成进度。</span></div>
-        <a href={practiceItem.originalUrl} target="_blank" rel="noreferrer">登录原站并练习<ExternalLink size={15}/></a>
+        <div><Globe2 size={17}/><span>{isSpeaking ? '已修正为口语专用链接；原站口语详情需要其独立账号。' : '原题页使用独立账号；工作台只负责保存计时与完成进度。'}</span></div>
+        <a href={sourceUrl}>当前窗口打开原题<ExternalLink size={15}/></a>
       </div>
-      {embedSource ? <iframe className="exam-frame" src={practiceItem.originalUrl} title={`${practiceItem.title} 雅思练习`} allow="autoplay; clipboard-write; microphone" /> : <div className="external-practice-card"><Globe2 size={34}/><strong>先登录雅思原题网站</strong><p>原站的登录状态不能由工作台代替。电脑和手机都请先在新窗口登录，再返回这里保存练习进度。</p><a className="primary-btn" href={practiceItem.originalUrl} target="_blank" rel="noreferrer">登录原站并开始练习<ExternalLink size={17}/></a><button className="secondary-btn" onClick={() => setEmbedSource(true)}>在工作台内预览</button><small>如果预览页再次显示“登录状态已过期”，请使用上方新窗口，不需要反复修改密码。</small></div>}
+      {embedSource && !isSpeaking ? <iframe className="exam-frame" src={sourceUrl} title={`${practiceItem.title} 雅思练习`} allow="autoplay; clipboard-write; microphone" /> : <div className="external-practice-card"><Globe2 size={34}/><strong>{isSpeaking ? '打开正确的口语原题' : '先登录雅思原题网站'}</strong><p>{isSpeaking ? '之前的链接错误地进入了听力页，现已改为口语专用地址。原站要求登录时，请在当前窗口完成登录，练习后使用浏览器返回工作台。' : '原站的登录状态不能由工作台代替。请在当前窗口登录原站，再返回这里保存练习进度。'}</p><a className="primary-btn" href={sourceUrl}>{isSpeaking ? '当前窗口打开口语题' : '当前窗口登录并练习'}<ExternalLink size={17}/></a>{isSpeaking ? <a className="official-speaking-link" href={officialSpeakingPracticeUrl}>原站仍无法登录？打开 IELTS 官方免费口语练习</a> : <button className="secondary-btn" onClick={() => setEmbedSource(true)}>在工作台内预览</button>}<small>{isSpeaking ? '口语页不再内嵌，避免跨站登录状态丢失。' : '如果预览页显示“登录状态已过期”，请使用上方当前窗口入口。'}</small></div>}
     </section>;
   }
 
